@@ -10,3 +10,14 @@ tasks.db*
 .local/
 worklane/local/
 dist/
+
+# Host state and provider bridges never belong in product source.
+.protocolcity/
+.claude/
+.local-logs/
+local/
+ticketingprotocol/
+.env
+.env.*
+!.env.example
+build/

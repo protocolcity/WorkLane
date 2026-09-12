@@ -1,88 +1,17 @@
-# WorkLane — Project instructions (L1 CORE)
+# WorkLane product instructions
 
-**Product brand:** **WorkLane** (queue / work orders for BluePrint cities).  
-**Wire / package:** Python package folder `worklane/` (renamed from
-`worklane/` — wl-280, 2026-08-05; local `worklane`→`worklane`
-symlink shim retired wl-413; dual-window console-script aliases retired
-wl-414; sqlite `_main_worktree_root` path fallback retired wl-415).
-**Citizen and Map glass say WorkLane**. Store slug `worklane`
-(legacy `worklane` still aliases) · prefix **`wl-`** (legacy `wl-`
-forever).
+WorkLane is the standalone local-first work-order engine. Its Python package is `worklane`; public tools are `wl_*`. Historical task IDs and compatible client aliases remain resolvable without restoring an old package or a second data store.
 
-Standalone **local-first** work-order engine. Independent of any host repo.
-Any workspace project may connect to the Desk as optional infrastructure;
-WorkLane makes no assumptions about the host.
+Read [ARCHITECTURE.md](ARCHITECTURE.md) for product structure, [PROTOCOL.md](PROTOCOL.md) for lifecycle, ownership, routing and evidence requirements, [INSTALL.md](INSTALL.md) for setup, and [README.md](README.md) for the product overview. Host instructions belong in the workspace, not in this distributable product source.
 
-This file is the repo's canonical law (ProtocolCity Charter §3 vendor-pointer
-rule): `CLAUDE.md` and `GROK.md` are thin `@AGENTS.md` forwards — one law,
-every vendor. **Normative process:** [PROTOCOL.md](PROTOCOL.md) — nothing here
-overrides it. **City loop (short):** workspace CORE + ProtocolCity
-`docs/specs/ALWAYS_WORK_PROTOCOL.md` (author You · seat hand · gold only on
-true blocker).
+## Boundaries
 
-## Reading order
+WorkLane owns work-order state and history. BluePrint is an optional interface. WorkForce is an optional execution integration. Independent business products do not embed WorkLane or require it at runtime. WorkLane must remain usable without BluePrint or a particular host repository.
 
-0. **[INSTALL.md](INSTALL.md)** — onboarding a *new* host (clone → install → start → bootstrap a project → pick an agent interface) plus **[HOST_PROFILE_TEMPLATE.md](HOST_PROFILE_TEMPLATE.md)** for writing that host's own PROTOCOL.md §6-style profile. Start here if Desk isn't running yet.
-1. **[PROTOCOL.md](PROTOCOL.md)** — normative operations rulebook. Lifecycle, ownership markers, comment cadence, closeout contract (`Completed:` / `Verification:` / `Links:` / `Follow-ups:`), auto-transition guards, dependency freeze rules. **Start here for ticket engine work.**
-2. **[README.md](README.md)** — product overview, install, launch, host-integration examples.
+Every write uses an explicit project and its resolved store. Runtime data is outside installed packages, selected by `WORKLANE_RUNTIME_DIR`; updates must preserve it. Compatibility aliases resolve to the same store and handlers. Never manufacture a commit reference or mark incomplete work done to satisfy a guard.
 
-## Folder map
+## Development
 
-The law maps the room (pc-111): the ProtocolCity map renders WL's room from
-these rows; entries missing here render unmapped.
+Canonical product repository: `protocolcity/WorkLane`. Keep source safe for distribution; credentials, host configurations, customer records, and private operational history do not belong here. No additional private-to-public export hop is required for changes made in this canonical source.
 
-| Path | What it is |
-|---|---|
-| `ARCHITECTURE.md` | Project architecture paper (L1) — layers, SoT, invariants; anchors the package paper |
-| `worklane/` | **Package path** — server, board, trackers, MCP, archival; `local/` runtime state |
-| `docs/` | The records — design docs, decisions, audits |
-| `scripts/` | Export/release/backup/migration scripts (the WorkLane export seam lives here) |
-| `github.public/` | Public-repo staging material for the WorkLane export |
-| `ops/` | Operational glue — service installs, maintenance |
-| `tests/` | The proving ground — pytest suite |
-| `workers/` | Worker papers — the self-host lane's CONTRACT.md + prompt.md |
-| `worklane.egg-info/` | Build metadata from the editable install (generated) |
-
-## Boundary rules
-
-- **WorkLane does not render inside host product pages.** REST API at port 8799 (API-only); glass is BluePrint suite `:8801`.
-- **Does not depend on host product uptime.** Long-lived local service.
-- **Not a SaaS dependency.** File-backed SQLite on the local machine.
-- **Any workspace project may connect as a client** — CLI or HTTP. Optional infrastructure; WorkLane never reaches back into the connecting project.
-
-If a change would cross any of these lines, open an issue proposing it first — boundary changes need explicit design sign-off. Don't silently couple.
-
-## Code conventions
-
-WorkLane ships Python + FastAPI (package import path `worklane`).
-
-- Match the host Python floor (3.9+ minimum): `Optional[X]`, `List[X]` — no PEP 604 union syntax.
-- Keep the package importable without the host. `worklane/*` must not
-  `from core.*` or `from <host>.*`.
-- Follow PROTOCOL.md §3 lifecycle (`Owner:`, `Completed:`+`Verification:`,
-  `Blocked:`+`Next step:`).
-- Shared checkout — never `git add -A` / `git commit -a`; stage only your paths
-  (PROTOCOL.md §5.1).
-
-## Host-specific instructions
-
-Each host owns its own workspace `AGENTS.md`. Host rules live there. This file
-is about WorkLane the product. When working inside another project, read that
-project’s L1 `AGENTS.md` too.
-
-<!-- bp:generated:hands -->
-- backlog-snapshot [claude-sonnet-4-6] (job)
-- chief-of-staff [claude-sonnet] (job)
-- doc-audit [claude-sonnet-4-6] (job)
-- efficiency-connector [claude-sonnet-4-6] (job)
-- efficiency-gridfinity [claude-sonnet-4-6] (job)
-- efficiency-oneseo-pos [claude-sonnet-4-6] (job)
-- efficiency-pass [claude-sonnet-4-6] (job)
-- efficiency-workforce [claude-sonnet-4-6] (job)
-- efficiency-worklane [claude-sonnet-4-6] (job)
-- github-desk [claude-haiku-4-5-20251001] (job)
-- lili [grok-4.5] (lane)
-- ship-desk [claude-haiku-4-5-20251001] (job)
-- suite-efficiency [claude-sonnet-4-6] (job)
-- visual-sweep (job)
-<!-- /bp:generated:hands -->
+Use Python3.9-compatible syntax. Match existing package boundaries: API and handler packages separate routing, reads, writes, and shared helpers. Public imports remain compatible across refactors. Run `python -m pytest tests -q` with a disposable runtime directory; tests must not call a live desk or wake real agents. Stage explicit paths. Local verification is distinct from publication and deployment.

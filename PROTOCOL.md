@@ -759,3 +759,8 @@ items) once the project gets its own dispatched agent lane.
    stores: all three surfaces render correctly with no code
    changes needed.
 
+
+
+## Host-only closeout evidence
+
+For an interactive host operation authored by `you` on a work order labeled both `worker:you` and `you:host`, Links may cite a navigable local evidence path or URL instead of a Git commit. Completed and Verification remain required; lifecycle and child-coverage checks still apply. A host setting or runtime-path repair need not manufacture a source commit. Source changes still cite their real verified commit and deployment evidence. All other work retains the landing-SHA requirement.
