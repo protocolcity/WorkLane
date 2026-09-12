@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+import os
 from typing import Any, Dict, List, Optional
 
 from worklane.mcp.handlers.errors import ToolError
@@ -161,11 +162,29 @@ class WriteMixin:
     def wl_comment(
         self, task_id: str, body: str, product: Optional[str] = None
     ) -> Dict[str, Any]:
-        """Post a signed comment. Lifecycle auto-transitions still apply."""
+        """Post a signed comment under the configured lifecycle profile."""
         body = (body or "").strip()
         if not body:
             raise ToolError("body is required")
         slug, raw_id, tr, task = self._resolve_task(task_id, product, write=True)
+        mode = os.environ.get("WORKLANE_COMMENT_TRANSITIONS", "1").strip()
+        if mode not in ("0", "1"):
+            raise ToolError("WORKLANE_COMMENT_TRANSITIONS must be 0 or 1")
+        if mode == "0":
+            if not isinstance(tr, SQLiteTracker):
+                raise ToolError("This tracker does not support status-preserving notes")
+            comment = tr.add_note(raw_id, body, author=self.author)
+            fresh = tr.get_task(raw_id)
+            return {
+                "ok": True,
+                "comment": {
+                    "id": comment.id, "task_id": self._public_id(slug, raw_id),
+                    "author": comment.author, "body": comment.body,
+                    "created_at": comment.created_at,
+                },
+                "task": self._task_dict(slug, fresh) if fresh else None,
+                "lifecycle_transitions": False,
+            }
         # Mirror API guard: Completed: must carry Verification: + Links:
         first_line = next((ln.strip() for ln in body.split("\n") if ln.strip()), "")
         if first_line.startswith("Completed"):

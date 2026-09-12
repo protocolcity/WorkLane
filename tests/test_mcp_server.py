@@ -13,6 +13,7 @@ import json
 import os
 import tempfile
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 
 from worklane.mcp.handlers import (
@@ -228,6 +229,48 @@ class HandlersTest(unittest.TestCase):
         self.assertIn("Verification:", body)
         self.assertIn("Links:", body)
         self.assertIn("Follow-ups:", body)
+
+    def test_review_note_profile_preserves_status_and_explicit_close(self) -> None:
+        with patch.dict(os.environ, {"WORKLANE_COMMENT_TRANSITIONS": "0"}):
+            tid = self.h.wl_create(title="Review", description="Await installed acceptance")["task"]["id"]
+            self.h.wl_claim(tid)
+            self.h.wl_park(tid, reason="host integration")
+            body = "Completed:\nSource fix\nVerification:\nTests pass\nFollow-ups:\nDeployment remains"
+            note = self.h.wl_comment(tid, body=body)
+            self.assertEqual(note["task"]["status"], "in_review")
+            self.assertEqual(note["comment"]["body"], body)
+            self.assertEqual(note["comment"]["author"], "grok")
+            self.assertFalse(note["lifecycle_transitions"])
+            blocked = self.h.wl_comment(tid, body="Blocked: review pending\nNext step: host integration")
+            self.assertEqual(blocked["task"]["status"], "in_review")
+            closed = self.h.wl_close(tid, completed="Installed", verification="Disposable test", links="abc1234")
+            self.assertEqual(closed["task"]["status"], "done")
+
+    def test_review_note_profile_does_not_thaw_dependencies(self) -> None:
+        tracker = SQLiteTracker(db_path=self.root / "data" / "notes.db")
+        anchor = tracker.create_task(title="Anchor", description="Needs review")
+        tracker.update_status(anchor.id, "in_progress")
+        dependent = tracker.create_task(title="Dependent", description="wait")
+        tracker.update_task(dependent.id, gate_type="deferred", gate_note="keep this gate")
+        with patch.object(tracker, "_thaw_dependency_frozen", side_effect=AssertionError("note thawed dependencies")):
+            tracker.add_note(anchor.id, "Completed:\nCode\nVerification:\nTests", author="builder")
+        self.assertEqual(tracker.get_task(anchor.id).status, "in_progress")
+        self.assertEqual(tracker.get_task(dependent.id).gate_note, "keep this gate")
+
+    def test_comment_profile_default_retains_legacy_completion(self) -> None:
+        with patch.dict(os.environ, {"WORKLANE_COMMENT_TRANSITIONS": "1"}):
+            tid = self.h.wl_create(title="Legacy close", description="complete")["task"]["id"]
+            self.h.wl_claim(tid)
+            result = self.h.wl_comment(tid, body="Completed:\nDone\nVerification:\nTest\nLinks:\nabc1234")
+            self.assertEqual(result["task"]["status"], "done")
+
+    def test_invalid_comment_profile_fails_without_writing(self) -> None:
+        tid = self.h.wl_create(title="Profile typo", description="no accidental close")["task"]["id"]
+        before = self.h.wl_show(tid)["comment_count"]
+        with patch.dict(os.environ, {"WORKLANE_COMMENT_TRANSITIONS": "disabled"}):
+            with self.assertRaises(ToolError):
+                self.h.wl_comment(tid, body="A note")
+        self.assertEqual(self.h.wl_show(tid)["comment_count"], before)
 
     def test_close_rejects_missing_sections(self) -> None:
         created = self.h.wl_create(

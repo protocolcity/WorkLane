@@ -742,6 +742,15 @@ class SQLiteTracker(ProjectTracker):
         return self.get_task(task_id)
 
     def add_comment(self, task_id: str, body: str, author: str = "") -> TaskComment:
+        return self._append_comment(task_id, body, author, lifecycle=True)
+
+    def add_note(self, task_id: str, body: str, author: str = "") -> TaskComment:
+        """Retain signed prose without lifecycle or dependency side effects."""
+        return self._append_comment(task_id, body, author, lifecycle=False)
+
+    def _append_comment(
+        self, task_id: str, body: str, author: str, *, lifecycle: bool
+    ) -> TaskComment:
         now = _now_iso()
         with self._connect() as conn:
             resolved = conn.execute(
@@ -765,10 +774,11 @@ class SQLiteTracker(ProjectTracker):
                     "UPDATE tasks SET updated_at = ? WHERE id = ?",
                     (now, task_pk),
                 )
-                self._apply_comment_lifecycle(
-                    conn, task_pk, current_status, body, now, actor=author
-                )
-                self._thaw_dependency_frozen(conn, now)
+                if lifecycle:
+                    self._apply_comment_lifecycle(
+                        conn, task_pk, current_status, body, now, actor=author
+                    )
+                    self._thaw_dependency_frozen(conn, now)
             row = conn.execute(
                 "SELECT * FROM task_comments WHERE id = ?", (comment_pk,)
             ).fetchone()
