@@ -80,6 +80,36 @@ class ReadyWorkerFilterTest(unittest.TestCase):
         self.assertEqual(body["count"], len(body["tasks"]))
         return {row["id"] for row in body["tasks"]}
 
+    def test_declared_and_structured_dependencies_match_mcp_and_claim_guard(self):
+        from worklane import relations
+        from worklane.mcp.handlers import TPHandlers
+        from worklane.trackers.protocol import TaskStatus
+        blocker = self.tracker.create_task(title="open prerequisite")
+        structured = self.tracker.create_task(title="structured dependent")
+        relations.create_relation(self.tracker._db_path, blocker.id, structured.id, "blocks")
+        declared = self.tracker.create_task(title="declared dependent", description=f"Depends on #{blocker.id}")
+        mixed = self.tracker.create_task(title="both forms", description="Depends on #999999")
+        relations.create_relation(self.tracker._db_path, blocker.id, mixed.id, "blocks")
+        umbrella = self.tracker.create_task(title="wrapper", labels=["umbrella"])
+        prose = self.tracker.create_task(title="context only", description=f"This work requires #{blocker.id} context.")
+        handler = TPHandlers(author="tester", default_product="tradeos")
+        def compare():
+            http = self._ready_ids()
+            mcp = {t['id'] for t in handler.wl_ready(product='tradeos', limit=200)['tasks']}
+            self.assertEqual(http, mcp)
+            return http
+        first = compare()
+        for task in (structured, declared, mixed, umbrella):
+            self.assertNotIn(f't-{task.id}', first)
+        self.assertIn(f't-{prose.id}', first)
+        refused = self.tracker.update_status(structured.id, status=TaskStatus.IN_PROGRESS)
+        self.assertNotEqual(refused.status, TaskStatus.IN_PROGRESS)
+        self.tracker.update_status(blocker.id, status=TaskStatus.CANCELED)
+        ready = compare()
+        self.assertIn(f't-{structured.id}', ready)
+        self.assertIn(f't-{declared.id}', ready)
+        self.assertNotIn(f't-{mixed.id}', ready)
+
     def test_no_worker_param_keeps_full_pool(self) -> None:
         ids = self._ready_ids()
         self.assertEqual(

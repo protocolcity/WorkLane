@@ -324,11 +324,11 @@ def api_tasks_ready(
 ) -> JSONResponse:
     """Dispatch-ready backlog tickets (wl-20 structured relations).
 
-    Uses ``blocks`` edges in ``task_relations``. When ``explain=1``, each
+    Uses the same WorkQueue policy as MCP: declared and structured blockers.
+    When ``explain=1``, each
     ticket includes ``ready`` / ``blocked_by`` detail (ready list is only
     the ready ones; full backlog explain is under ``explain`` when set).
-    Prose ``Depends on #N`` remains the intake shim — it is not replaced
-    here; materialize via the dry-run backfill script.
+    Explicit prose declarations remain effective without a backfill write.
 
     ``worker=<name>`` applies the assignment law for default lanes
     (wl-191): a ticket carrying any ``worker:*`` label is ready for the
@@ -388,24 +388,19 @@ def api_tasks_ready(
 
         tasks = [t for t in tasks if _claimable(t)]
 
-    status_by_id = relmod.load_status_map(db_path)
-    # Include non-backlog statuses for blocker resolution (done/canceled).
-    for t in tracker.list_tasks(limit=None):
-        status_by_id[str(t.id)] = t.status
-
-    edges = relmod.list_relations(db_path)
-    backlog_ids = [str(t.id) for t in tasks]
-    explained = relmod.explain_ready(backlog_ids, status_by_id, edges)
-
-    # Stable priority order matching WorkQueue.
+    from worklane.devqueue.queue import WorkQueue
+    queue = WorkQueue(tracker)
     by_id = {str(t.id): t for t in tasks}
-    ready_raw = [tid for tid in backlog_ids if explained[tid].ready]
-    ready_raw.sort(
-        key=lambda tid: (
-            by_id[tid].priority if 1 <= int(by_id[tid].priority or 3) <= 4 else 99,
-            by_id[tid].updated_at or "",
+    backlog_ids = list(by_id)
+    explained = {}
+    for task in tasks:
+        unresolved = [ref for ref in queue.blockers_for(task) if not queue._is_done(ref)]
+        explained[str(task.id)] = relmod.ReadyExplain(
+            task_id=str(task.id),
+            ready=queue.is_ready(task) and "umbrella" not in (task.labels or []),
+            blocked_by=unresolved, status=task.status,
         )
-    )
+    ready_raw = [str(t.id) for t in queue.ready() if str(t.id) in by_id]
     ready_raw = ready_raw[: max(0, int(limit or 200))]
 
     def _pub(tid: str) -> str:

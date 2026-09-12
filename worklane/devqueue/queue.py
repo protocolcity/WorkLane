@@ -1,15 +1,7 @@
-"""Work queue engine for dev mode (SEO-180).
+"""Shared read-only eligibility policy for HTTP, MCP, and dev queues.
 
-The queue is a thin layer over a :class:`ProjectTracker`. It loads the
-current task list, applies a deterministic priority sort, drops anything
-whose blockers aren't Done, and exposes the resulting "ready" set so the
-dev dashboard can suggest the next batch.
-
-Dependencies are parsed out of the ticket description: any
-``SEO-\\d+`` reference appearing under a Markdown heading whose text
-contains "depends" or "blocked" is treated as a blocker. This matches
-the convention the Linear export already uses (see SEO-180 itself for
-an example) and avoids needing the optional Linear ``relations`` graph.
+Explicit prose declarations and structured blocks relations both apply.
+Done or canceled prerequisites are resolved; unknown references fail closed.
 """
 
 from __future__ import annotations
@@ -17,57 +9,13 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Dict, Iterable, List, Optional, Sequence, Set
 
-from worklane._ref_parse import (
-    _BLOCKER_KEYWORDS,
-    _EPIC_REF_RE,
-    _HEADING_RE,
-    _extract_ticket_refs,
-)
 from worklane.trackers.protocol import ProjectTracker, Task, TaskStatus, task_is_gated
 
 
 def parse_blockers(description: str) -> List[str]:
-    """Return ticket IDs (e.g. ``["SEO-164"]``) listed as blockers.
-
-    A blocker is any ``SEO-\\d+`` reference that lives in a section whose
-    heading mentions "depends", "blocked by", "blockers", or "requires".
-    A section runs from the end of its heading line to the start of the
-    next heading (any level), or end-of-text. Returned IDs are
-    de-duplicated, preserving first-seen order.
-    """
-    if not description:
-        return []
-    text = _EPIC_REF_RE.sub("", description)
-
-    seen: Set[str] = set()
-    out: List[str] = []
-
-    headings = list(_HEADING_RE.finditer(text))
-    for i, match in enumerate(headings):
-        title = match.group("title").strip().lower()
-        if not any(k in title for k in _BLOCKER_KEYWORDS):
-            continue
-        body_start = match.end()
-        body_end = headings[i + 1].start() if i + 1 < len(headings) else len(text)
-        refs = _extract_ticket_refs(text[body_start:body_end])
-        for ref in refs:
-            if ref not in seen:
-                seen.add(ref)
-                out.append(ref)
-
-    # Fallback for short descriptions like "Depends on #326" without
-    # markdown section headers.
-    if not out:
-        for line in text.splitlines():
-            lower = line.lower()
-            if not any(k in lower for k in _BLOCKER_KEYWORDS):
-                continue
-            refs = _extract_ticket_refs(line)
-            for ref in refs:
-                if ref not in seen:
-                    seen.add(ref)
-                    out.append(ref)
-    return out
+    """Use the tracker's explicit declaration grammar on every ready surface."""
+    from worklane.trackers.sqlite import _parse_blockers
+    return _parse_blockers(description)
 
 
 # ── public datatypes ─────────────────────────────────────────────────────
@@ -151,6 +99,19 @@ class WorkQueue:
                 self._by_ext[t.ext_id] = t
             self._by_ext[t.id] = t
 
+        self._relations: Dict[str, List[str]] = {}
+        from worklane.trackers.sqlite import SQLiteTracker
+        if isinstance(tracker, SQLiteTracker):
+            # The tracker has initialized its schema above. Read only; relation
+            # failures propagate rather than silently making blocked work ready.
+            import sqlite3
+            from contextlib import closing
+            with closing(sqlite3.connect(tracker._db_path.resolve().as_uri() + '?mode=ro', uri=True)) as conn:
+                for source, target in conn.execute(
+                    "SELECT from_id, to_id FROM task_relations WHERE relation_type = 'blocks'"
+                ):
+                    self._relations.setdefault(str(target), []).append(str(source))
+
     # ── accessors ────────────────────────────────────────────────────
 
     @property
@@ -167,13 +128,13 @@ class WorkQueue:
 
     def _is_done(self, ticket_id: str) -> bool:
         t = self._by_ext.get(ticket_id)
-        return t is not None and t.status == TaskStatus.DONE
+        return t is not None and t.status in (TaskStatus.DONE, TaskStatus.CANCELED)
 
     def blockers_for(self, task: Task) -> List[str]:
-        return parse_blockers(task.description)
+        return list(dict.fromkeys(parse_blockers(task.description) + self._relations.get(str(task.id), [])))
 
     def is_ready(self, task: Task) -> bool:
-        """True if every parsed blocker for ``task`` is Done.
+        """True if every declared or structured blocker is done or canceled.
 
         Unknown blockers (referenced ticket isn't in the local tracker)
         count as still blocking — safer than dispatching work whose

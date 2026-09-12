@@ -1029,6 +1029,10 @@ class SQLiteTracker(ProjectTracker):
         self, conn: sqlite3.Connection, task: Task
     ) -> List[str]:
         blockers = _parse_blockers(task.description or "")
+        blockers = list(dict.fromkeys(blockers + [str(row[0]) for row in conn.execute(
+            "SELECT from_id FROM task_relations WHERE to_id = ? AND relation_type = 'blocks'",
+            (int(task.id),),
+        )]))
         unresolved: List[str] = []
         for ref in blockers:
             row = conn.execute(
