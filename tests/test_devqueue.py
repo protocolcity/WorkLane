@@ -115,6 +115,16 @@ class WorkQueueBehaviorTest(unittest.TestCase):
         ready_ids = [t.id for t in ready]
         self.assertEqual(ready_ids[:3], [urgent.id, normal.id, low.id])
 
+    def test_old_completed_prerequisite_is_not_lost_to_history_limit(self) -> None:
+        done = _task("1", status=TaskStatus.DONE)
+        child = _task("503", description="Depends on #1")
+        records = [child] + [
+            _task(str(i), status=TaskStatus.DONE) for i in range(502, 1, -1)
+        ] + [done]
+        tracker = mock.Mock()
+        tracker.list_tasks.side_effect = lambda limit=None: records[:limit]
+        self.assertEqual([t.id for t in WorkQueue(tracker).ready()], [child.id])
+
     def test_dependency_filter_unknown_blocker_hides_ticket(self) -> None:
         blocked = self.tracker.create_task(
             title="blocked",

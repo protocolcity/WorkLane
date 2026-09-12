@@ -316,6 +316,30 @@ class HandlersTest(unittest.TestCase):
         self.assertIn(free["task"]["id"], ready_ids)
         self.assertNotIn(gated["task"]["id"], ready_ids)
 
+    def test_ready_keeps_old_work_after_more_than_500_records(self) -> None:
+        from fastapi import FastAPI
+        from fastapi.testclient import TestClient
+        from worklane.task_server import router
+
+        tracker = SQLiteTracker(db_path=self.root / "data" / "tradeos.db")
+        old = tracker.create_task(title="Old unfinished work", priority=1)
+        for i in range(501):
+            task = tracker.create_task(title="Finished work %s" % i)
+            tracker.update_status(task.id, "done")
+
+        app = FastAPI()
+        app.include_router(router)
+        response = TestClient(app).get(
+            "/api/admin/tasks/ready", params={"product": "tradeos", "limit": 1}
+        )
+        self.assertEqual(response.status_code, 200)
+        from worklane.products import get_product
+        expected = [get_product("tradeos").prefix + "-" + old.id]
+        self.assertEqual([t["id"] for t in response.json()["tasks"]], expected)
+        for project in ("tradeos", "all"):
+            result = self.h.wl_ready(product=project, limit=1)
+            self.assertEqual([t["id"] for t in result["tasks"]], expected)
+
     def test_dispatch_unknown_tool(self) -> None:
         with self.assertRaises(ToolError):
             dispatch_tool(self.h, "wl_nope", {})
