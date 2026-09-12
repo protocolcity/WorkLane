@@ -59,6 +59,10 @@ def _resolve_write_tracker(
         )
 
 
+def _local_roster_only() -> bool:
+    return os.environ.get("WL_WORKFORCE_LOCAL_ONLY", "").strip().lower() in ("1", "true", "yes")
+
+
 def _workforce_roster_path() -> Optional[str]:
     """Return the local WorkForce roster.json path from env or auto-discovery.
 
@@ -71,6 +75,8 @@ def _workforce_roster_path() -> Optional[str]:
     explicit = (os.environ.get("WL_WORKFORCE_ROSTER") or os.environ.get("WL_WORKFORCE_ROSTER", "")).strip()
     if explicit:
         return explicit
+    if _local_roster_only():
+        return None  # Explicit authority never discovers a different workspace.
     predirty = os.environ.get("WORKFORCE_PREDIRTY", "").strip()
     if predirty:
         try:
@@ -110,28 +116,29 @@ def _workforce_workers_for_product(product_slug: str) -> List[str]:
     ``product=<slug>`` (the convention all current lanes follow).
     """
     needle = "product=" + product_slug
-    url = (os.environ.get("WL_WORKFORCE_URL") or os.environ.get("WL_WORKFORCE_URL", "http://127.0.0.1:8797")) + "/api/workers?light=1"
-    try:
-        req = urllib.request.Request(url, headers={"Accept": "application/json"})
-        with urllib.request.urlopen(req, timeout=3) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
-        workers = data.get("workers") or []
-        if isinstance(workers, list):
-            return [
-                "worker:" + w["name"]
-                for w in workers
-                if w.get("kind") == "lane" and needle in (w.get("queue_url") or "")
-            ]
-        if isinstance(workers, dict):
-            return [
-                "worker:" + name
-                for name, w in workers.items()
-                if isinstance(w, dict) and w.get("kind") == "lane"
-                and needle in (w.get("queue_url") or "")
-            ]
-    except Exception:
-        pass
-    # Fallback: local roster.json when the WorkForce service is unavailable.
+    if not _local_roster_only():
+        url = (os.environ.get("WL_WORKFORCE_URL") or os.environ.get("WL_WORKFORCE_URL", "http://127.0.0.1:8797")) + "/api/workers?light=1"
+        try:
+            req = urllib.request.Request(url, headers={"Accept": "application/json"})
+            with urllib.request.urlopen(req, timeout=3) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+            workers = data.get("workers") or []
+            if isinstance(workers, list):
+                return [
+                    "worker:" + w["name"]
+                    for w in workers
+                    if w.get("kind") == "lane" and needle in (w.get("queue_url") or "")
+                ]
+            if isinstance(workers, dict):
+                return [
+                    "worker:" + name
+                    for name, w in workers.items()
+                    if isinstance(w, dict) and w.get("kind") == "lane"
+                    and needle in (w.get("queue_url") or "")
+                ]
+        except Exception:
+            pass
+        # Fallback: local roster.json when the WorkForce service is unavailable.
     roster_path = _workforce_roster_path()
     if not roster_path:
         return []
@@ -161,30 +168,31 @@ def _workforce_products_for_workers() -> Dict[str, str]:
     Same API / roster fallback chain; returns empty dict on all failures so
     the caller is never blocked.
     """
-    url = (os.environ.get("WL_WORKFORCE_URL") or os.environ.get("WL_WORKFORCE_URL", "http://127.0.0.1:8797")) + "/api/workers?light=1"
-    try:
-        req = urllib.request.Request(url, headers={"Accept": "application/json"})
-        with urllib.request.urlopen(req, timeout=3) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
-        workers = data.get("workers") or []
-        result: Dict[str, str] = {}
-        if isinstance(workers, list):
-            for w in workers:
-                if w.get("kind") != "lane":
-                    continue
-                m = _PRODUCT_FROM_URL_RE.search(w.get("queue_url") or "")
-                if m:
-                    result[w["name"]] = m.group(1)
-        elif isinstance(workers, dict):
-            for name, w in workers.items():
-                if not isinstance(w, dict) or w.get("kind") != "lane":
-                    continue
-                m = _PRODUCT_FROM_URL_RE.search(w.get("queue_url") or "")
-                if m:
-                    result[name] = m.group(1)
-        return result
-    except Exception:
-        pass
+    if not _local_roster_only():
+        url = (os.environ.get("WL_WORKFORCE_URL") or os.environ.get("WL_WORKFORCE_URL", "http://127.0.0.1:8797")) + "/api/workers?light=1"
+        try:
+            req = urllib.request.Request(url, headers={"Accept": "application/json"})
+            with urllib.request.urlopen(req, timeout=3) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+            workers = data.get("workers") or []
+            result: Dict[str, str] = {}
+            if isinstance(workers, list):
+                for w in workers:
+                    if w.get("kind") != "lane":
+                        continue
+                    m = _PRODUCT_FROM_URL_RE.search(w.get("queue_url") or "")
+                    if m:
+                        result[w["name"]] = m.group(1)
+            elif isinstance(workers, dict):
+                for name, w in workers.items():
+                    if not isinstance(w, dict) or w.get("kind") != "lane":
+                        continue
+                    m = _PRODUCT_FROM_URL_RE.search(w.get("queue_url") or "")
+                    if m:
+                        result[name] = m.group(1)
+            return result
+        except Exception:
+            pass
     roster_path = _workforce_roster_path()
     if not roster_path:
         return {}
