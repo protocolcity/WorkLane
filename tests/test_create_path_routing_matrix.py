@@ -107,8 +107,6 @@ class _MatrixEnv(unittest.TestCase):
 
         os.environ["WORKLANE_RUNTIME_DIR"] = str(self.root)
         os.environ["WORKLANE_DB"] = str(self.db_path)
-        os.environ.pop("WORKLANE_RUNTIME_DIR", None)
-        os.environ.pop("WORKLANE_DB", None)
         os.environ.pop("TRADEOS_TRACKER_DB", None)
         os.environ["TRADEOS_TICKETS_SOURCE"] = "sqlite"
         os.environ["WL_DEFAULT_PRODUCT"] = PRODUCT
@@ -122,9 +120,10 @@ class _MatrixEnv(unittest.TestCase):
         os.environ.pop("WORKFORCE_PREDIRTY", None)
         os.environ["WL_WORKFORCE_NO_CITY_ROSTER"] = "1"
         os.environ["WL_AGENT_ID"] = "lili"
-        os.environ.pop("WL_AGENT_ID", None)
 
-        # Materialize the store so product discovery sees worklane.
+        # Resolve through the same path used by adapters, before any writes.
+        from worklane.products import wl_data_dir
+        self.assertEqual(wl_data_dir().resolve(), self.db_path.parent.resolve())
         SQLiteTracker(db_path=self.db_path, product_default="product:worklane")
 
         self._hired_patch = patch(
