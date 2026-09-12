@@ -746,7 +746,13 @@ class SQLiteTracker(ProjectTracker):
 
     def add_note(self, task_id: str, body: str, author: str = "") -> TaskComment:
         """Retain signed prose without lifecycle or dependency side effects."""
-        return self._append_comment(task_id, body, author, lifecycle=False)
+        # Existing evidence/count/owner readers recognize command headings in
+        # stored prose. Quote every line so a note cannot masquerade as a prior
+        # completion or Owner marker when those readers inspect history later.
+        note = "Evidence note (status unchanged):\n\n" + "\n".join(
+            "> " + line for line in body.split("\n")
+        )
+        return self._append_comment(task_id, note, author, lifecycle=False)
 
     def _append_comment(
         self, task_id: str, body: str, author: str, *, lifecycle: bool

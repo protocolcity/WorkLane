@@ -238,7 +238,9 @@ class HandlersTest(unittest.TestCase):
             body = "Completed:\nSource fix\nVerification:\nTests pass\nFollow-ups:\nDeployment remains"
             note = self.h.wl_comment(tid, body=body)
             self.assertEqual(note["task"]["status"], "in_review")
-            self.assertEqual(note["comment"]["body"], body)
+            self.assertEqual(note["comment"]["body"],
+                             "Evidence note (status unchanged):\n\n" + "\n".join(
+                                 "> " + line for line in body.split("\n")))
             self.assertEqual(note["comment"]["author"], "grok")
             self.assertFalse(note["lifecycle_transitions"])
             blocked = self.h.wl_comment(tid, body="Blocked: review pending\nNext step: host integration")
@@ -256,6 +258,19 @@ class HandlersTest(unittest.TestCase):
             tracker.add_note(anchor.id, "Completed:\nCode\nVerification:\nTests", author="builder")
         self.assertEqual(tracker.get_task(anchor.id).status, "in_progress")
         self.assertEqual(tracker.get_task(dependent.id).gate_note, "keep this gate")
+
+    def test_evidence_note_is_not_legacy_closeout_evidence(self) -> None:
+        from worklane.api.tasks.crud import _comments_have_done_closeout
+        tracker = SQLiteTracker(db_path=self.root / "data" / "note-readers.db")
+        task = tracker.create_task(title="Review", description="pending")
+        tracker.update_status(task.id, "in_progress")
+        note = tracker.add_note(task.id, "Completed:\nSource fix\nVerification:\nTests\nOwner: other", author="builder")
+        self.assertFalse(_comments_have_done_closeout([note]))
+        with tracker._connect() as conn:
+            count = conn.execute("SELECT COUNT(*) FROM task_comments WHERE body LIKE 'Completed:%'").fetchone()[0]
+        self.assertEqual(count, 0)
+        self.assertIn("> Owner: other", note.body)
+        self.assertEqual(tracker.get_task(task.id).status, "in_progress")
 
     def test_comment_profile_default_retains_legacy_completion(self) -> None:
         with patch.dict(os.environ, {"WORKLANE_COMMENT_TRANSITIONS": "1"}):
