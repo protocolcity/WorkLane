@@ -247,6 +247,7 @@ class EmptyRuntimeOverrideTest(unittest.TestCase):
 
         # First successful tool result carries one-time runtime_warning.
         first = dispatch_tool(h, "wl_counts", {"product": "tradeos"})
+        self.assertTrue((empty / "data" / "tradeos.db").is_file())
         self.assertIn("runtime_warning", first)
         self.assertIn(str(empty), first["runtime_warning"])
         second = dispatch_tool(h, "wl_counts", {"product": "tradeos"})

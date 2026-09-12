@@ -76,12 +76,8 @@ class ParseBlockersTest(unittest.TestCase):
         self.assertEqual(parse_blockers("Blocked by SEO-7."), ["SEO-7"])
 
     def test_prose_requires_without_heading_is_not_blocker(self) -> None:
-        # Mid-sentence "requires" is not a declaration line keyword hit
-        # for the heading path; the line-fallback requires the keyword
-        # on the same line, so this still counts — match production:
-        # any line containing a blocker keyword yields its refs.
         text = "This work requires #807 groundwork."
-        self.assertEqual(parse_blockers(text), ["807"])
+        self.assertEqual(parse_blockers(text), [])
 
     def test_related_refs_alone_never_block(self) -> None:
         self.assertEqual(parse_blockers("Related: #1, #2. See also #3."), [])
