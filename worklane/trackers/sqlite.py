@@ -222,6 +222,7 @@ class SQLiteTracker(ProjectTracker):
         product_default: str = PRODUCT_LABEL_TRADEOS,
     ) -> None:
         if db_path is None:
+            from worklane.products import default_product_slug, runtime_dir_override, wl_data_dir
             env = (
                 os.environ.get("WORKLANE_DB")
                 or os.environ.get("WORKLANE_DB")
@@ -229,6 +230,10 @@ class SQLiteTracker(ProjectTracker):
             )
             if env:
                 db_path = Path(env)
+            elif runtime_dir_override():
+                # A selected runtime must never fall back to an import-time
+                # default or legacy store belonging to another workspace.
+                db_path = wl_data_dir() / ((default_product_slug() or "tradeos") + ".db")
             elif DEFAULT_DB_PATH.exists():
                 # If the canonical DB is empty but a legacy store has tasks,
                 # keep reading legacy until tickets-install migrates it.
@@ -255,7 +260,6 @@ class SQLiteTracker(ProjectTracker):
                 # install doesn't create a database named after tradeOS.
                 # Existing hosts never reach this branch: DEFAULT_DB_PATH
                 # already exists for them, handled above.
-                from worklane.products import default_product_slug, wl_data_dir
 
                 slug = default_product_slug() or "tradeos"
                 db_path = (
@@ -1029,6 +1033,10 @@ class SQLiteTracker(ProjectTracker):
         self, conn: sqlite3.Connection, task: Task
     ) -> List[str]:
         blockers = _parse_blockers(task.description or "")
+        blockers = list(dict.fromkeys(blockers + [str(row[0]) for row in conn.execute(
+            "SELECT from_id FROM task_relations WHERE to_id = ? AND relation_type = 'blocks'",
+            (int(task.id),),
+        )]))
         unresolved: List[str] = []
         for ref in blockers:
             row = conn.execute(

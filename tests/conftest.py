@@ -37,3 +37,25 @@ def _isolate_workforce(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("WL_WORKFORCE_ROSTER", raising=False)
     monkeypatch.delenv("WORKFORCE_PREDIRTY", raising=False)
     monkeypatch.setenv("WL_WORKFORCE_NO_CITY_ROSTER", "1")
+
+
+@pytest.fixture(autouse=True)
+def _refuse_host_databases(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Fail before SQLite can touch a host store, even if a fixture loses its env."""
+    import sqlite3
+    import tempfile
+    from pathlib import Path
+    from urllib.parse import unquote, urlsplit
+    connect = sqlite3.connect
+    temporary_root = Path(tempfile.gettempdir()).resolve()
+
+    def guarded(database, *args, **kwargs):
+        value = str(database)
+        if value not in ("", ":memory:") and not value.startswith("file::memory:"):
+            path = unquote(urlsplit(value).path) if value.startswith("file:") else value
+            resolved = Path(path).resolve()
+            if temporary_root not in resolved.parents:
+                raise RuntimeError("Test attempted to open a non-temporary SQLite database: " + str(resolved))
+        return connect(database, *args, **kwargs)
+
+    monkeypatch.setattr(sqlite3, "connect", guarded)
