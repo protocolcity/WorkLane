@@ -1014,7 +1014,7 @@ _CLOSEOUT_HINT = (
 )
 
 
-def _comment_process_violation(body: str, author: str) -> Optional[str]:
+def _comment_process_violation(body: str, author: str, labels=None) -> Optional[str]:
     """PROTOCOL.md guard: §3.8 signed comments + §5 close-out contract.
 
     Returns an error string when the comment must be rejected, else None.
@@ -1035,7 +1035,7 @@ def _comment_process_violation(body: str, author: str) -> Optional[str]:
             closeout_links_violation,
         )
 
-        sha_err = closeout_links_violation(body)
+        sha_err = closeout_links_violation(body, labels=labels, author=author)
         if sha_err:
             return sha_err
     if first_line.startswith("Blocked") and "Next step:" not in body:
@@ -1079,7 +1079,15 @@ async def api_add_comment(task_id: str, request: Request) -> JSONResponse:
         return JSONResponse({"ok": False, "error": "body is required"}, status_code=400)
     author = str(payload.get("author") or "")
 
-    violation = _comment_process_violation(body, author)
+    resolved, err = _resolve_write_tracker(
+        task_id, _project_from_request(request, payload)
+    )
+    if err is not None:
+        return err
+    assert resolved is not None
+    surf, raw_id, tracker = resolved
+    current = tracker.get_task(raw_id)
+    violation = _comment_process_violation(body, author, labels=getattr(current, 'labels', None))
     if violation:
         return JSONResponse({"ok": False, "error": violation}, status_code=400)
 
@@ -1092,13 +1100,6 @@ async def api_add_comment(task_id: str, request: Request) -> JSONResponse:
             author, task_id, marked,
         )
 
-    resolved, err = _resolve_write_tracker(
-        task_id, _project_from_request(request, payload)
-    )
-    if err is not None:
-        return err
-    assert resolved is not None
-    surf, raw_id, tracker = resolved
     if surf == live_feed_product_slug() and _tradeos_tickets_use_http_feed():
         code, data = _request_tradeos_json(
             "POST",

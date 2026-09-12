@@ -504,6 +504,8 @@ def dispatch_tool(handlers: TPHandlers, name: str, arguments: Dict[str, Any]) ->
         "wl_mine": handlers.wl_mine,
         "wl_counts": handlers.wl_counts,
     }
+    if name.startswith("tp_"):
+        name = "wl_" + name[3:]
     fn = table.get(name)
     if fn is None:
         raise ToolError(f"unknown tool: {name}")

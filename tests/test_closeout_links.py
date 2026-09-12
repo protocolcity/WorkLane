@@ -132,6 +132,13 @@ class CloseoutLinksHttpTests(unittest.TestCase):
         self.assertEqual(r.status_code, 400, msg=r.text)
         self.assertIn("landing commit SHA", r.json()["error"])
 
+    def test_api_accepts_host_evidence_without_source_commit(self):
+        response = self.client.post('/api/admin/tasks', json={'title':'Host setting', 'description':'Verify a local setting', 'author':'you', 'labels':['worker:you','you:host']})
+        self.assertEqual(response.status_code,200,response.text)
+        tid=response.json()['task']['id']
+        response=self.client.post(f'/api/admin/tasks/{tid}/comments',json={'author':'you','body':'Completed: setting repaired\nVerification: read back exact configuration\nLinks: local/reports/host-check.md\nFollow-ups: none'})
+        self.assertEqual(response.status_code,200,response.text)
+
     def test_api_accepts_sha_in_links(self) -> None:
         tid = self._mk_task()
         body = (
@@ -192,6 +199,18 @@ class CloseoutLinksMcpTests(unittest.TestCase):
                 links="- worklane/closeout_links.py",
             )
         self.assertIn("landing commit SHA", ctx.exception.message)
+
+    def test_host_close_preserves_lifecycle_and_needs_evidence(self):
+        handler=TPHandlers(author='you',default_product='tradeos')
+        created=handler.wl_create(title='Host setting',description='Verify host configuration',labels=['worker:you','you:host'])
+        tid=created['task']['id']
+        with self.assertRaises(ToolError):
+            handler.wl_close(tid,completed='Set',verification='Read back',links='local/reports/host.md')
+        handler.wl_claim(tid)
+        with self.assertRaises(ToolError):
+            handler.wl_close(tid,completed='Set',verification='',links='local/reports/host.md')
+        result=handler.wl_close(tid,completed='Set',verification='Read back exact configuration',links='local/reports/host.md')
+        self.assertEqual(result['task']['status'],'done')
 
     def test_tp_close_accepts_sha(self) -> None:
         created = self.h.wl_create(

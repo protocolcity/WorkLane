@@ -57,14 +57,19 @@ def extract_links_section(body: str) -> str:
     return (m.group(1) or "").strip()
 
 
-def links_missing_landing_sha(links_text: str) -> Optional[str]:
+def links_missing_landing_sha(links_text: str, *, labels=None, author=None) -> Optional[str]:
     """Return an error string when *links_text* has no commit SHA, else None."""
+    host_only = author == "you" and {"worker:you", "you:host"}.issubset(set(labels or []))
+    if host_only:
+        if re.search(r"(?:https?://[^\s]+|(?:[A-Za-z0-9_.~-]+/)+[A-Za-z0-9_.-]+)", links_text or ""):
+            return None
+        return "Host close-out requires a navigable evidence path or URL in Links; verification is still required."
     if find_commit_shas(links_text or ""):
         return None
     return LINKS_SHA_HINT
 
 
-def closeout_links_violation(body: str) -> Optional[str]:
+def closeout_links_violation(body: str, *, labels=None, author=None) -> Optional[str]:
     """If *body* is a Completed: close-out, require a SHA in Links.
 
     Non-close-out comments return None. Callers that already enforce
@@ -77,4 +82,4 @@ def closeout_links_violation(body: str) -> Optional[str]:
     # Missing Links: is handled by the existing §5 section guard.
     if "Links:" not in text and "links:" not in text.lower():
         return None
-    return links_missing_landing_sha(extract_links_section(text))
+    return links_missing_landing_sha(extract_links_section(text), labels=labels, author=author)
