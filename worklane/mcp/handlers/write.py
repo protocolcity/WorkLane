@@ -165,6 +165,7 @@ class WriteMixin:
         body = (body or "").strip()
         if not body:
             raise ToolError("body is required")
+        slug, raw_id, tr, task = self._resolve_task(task_id, product, write=True)
         # Mirror API guard: Completed: must carry Verification: + Links:
         first_line = next((ln.strip() for ln in body.split("\n") if ln.strip()), "")
         if first_line.startswith("Completed"):
@@ -178,7 +179,7 @@ class WriteMixin:
                 closeout_links_violation,
             )
 
-            sha_err = closeout_links_violation(body)
+            sha_err = closeout_links_violation(body, labels=task.labels, author=self.author)
             if sha_err:
                 raise ToolError(sha_err)
         if first_line.startswith("Blocked") and "Next step:" not in body:
@@ -186,7 +187,6 @@ class WriteMixin:
                 "Blocked comments must include a 'Next step:' line (PROTOCOL.md §5)"
             )
 
-        slug, raw_id, tr, task = self._resolve_task(task_id, product, write=True)
         # wl-347: refuse Completed: on umbrella/epic with uncovered children.
         from worklane.epic_coverage import (  # noqa: PLC0415
             body_is_done_closeout,
@@ -253,11 +253,11 @@ class WriteMixin:
         # wl-396: reject path-only Links (landing SHA required).
         from worklane.closeout_links import links_missing_landing_sha  # noqa: PLC0415
 
-        sha_err = links_missing_landing_sha(links)
+        slug, raw_id, tr, task = self._resolve_task(task_id, product, write=True)
+        sha_err = links_missing_landing_sha(links, labels=task.labels, author=self.author)
         if sha_err:
             raise ToolError(sha_err)
 
-        slug, raw_id, tr, task = self._resolve_task(task_id, product, write=True)
         if task.status not in (TaskStatus.IN_PROGRESS, TaskStatus.IN_REVIEW):
             raise ToolError(
                 f"can only close from in_progress/in_review "

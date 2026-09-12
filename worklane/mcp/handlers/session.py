@@ -40,8 +40,8 @@ class TPHandlers(ReadMixin, WriteMixin):
                 default_product
                 or os.environ.get("WL_PROJECT")
                 or os.environ.get("WL_PRODUCT")
-                or os.environ.get("WL_PROJECT")
-                or os.environ.get("WL_PRODUCT")
+                or os.environ.get("TP_PROJECT")
+                or os.environ.get("TP_PRODUCT")
                 or default_product_slug()
                 or _DEFAULT_PROJECT
             )
@@ -53,6 +53,15 @@ class TPHandlers(ReadMixin, WriteMixin):
         # lets the first tool result also carry the path when miswired.
         self._empty_override_hint: Optional[str] = empty_runtime_override_warning()
         self._empty_override_hint_sent = False
+
+    def __getattr__(self, name):
+        # Compatibility for clients of the former handler API; public names
+        # and all current documentation remain wl_*.
+        if name.startswith("tp_"):
+            method = getattr(self, "wl_" + name[3:], None)
+            if method is not None:
+                return method
+        raise AttributeError(name)
 
     def _consume_empty_override_hint(self) -> Optional[str]:
         """Return the one-time empty-override tool hint, then clear it."""

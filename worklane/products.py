@@ -32,7 +32,7 @@ _KNOWN_PRODUCT_META: Dict[str, Tuple[str, str]] = {
     "tradeos": ("tradeOS", "t"),
     # wl-207: canonical host store is worklane (wl-); wl- resolves via legacy_prefixes
     "worklane": ("WorkLane", "wl"),
-    "worklane": ("WorkLane", "wl"),  # legacy slug only if old .db still present
+    "ticketingprotocol": ("WorkLane", "tp"),  # historical store identity, never a package name
 }
 
 # Legacy stores that are not product surfaces. ``ops_tickets`` is the
@@ -148,7 +148,7 @@ def runtime_local_opt_in() -> bool:
     """
     val = (
         os.environ.get("WORKLANE_RUNTIME_LOCAL")
-        or os.environ.get("WORKLANE_RUNTIME_LOCAL")
+        or os.environ.get("TICKETING_PROTOCOL_RUNTIME_LOCAL")
         or ""
     ).strip().lower()
     return val in ("1", "true", "yes", "on")
@@ -162,7 +162,7 @@ def runtime_dir_override() -> str:
     """
     return (
         os.environ.get("WORKLANE_RUNTIME_DIR")
-        or os.environ.get("WORKLANE_RUNTIME_DIR")
+        or os.environ.get("TICKETING_PROTOCOL_RUNTIME_DIR")
         or ""
     ).strip()
 
@@ -753,3 +753,7 @@ def resolve_write_task_id(
             "to prevent default-store bleed (wl-344)"
         )
     return explicit, tid
+
+
+# Historical imported helper name. New callers use wl_data_dir.
+tp_data_dir = wl_data_dir
