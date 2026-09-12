@@ -6,6 +6,20 @@ assumes no existing host.
 
 ## Quick install (package / suite dependency)
 
+For a PR-stage worker, set `WORKLANE_COMMENT_TRANSITIONS=0` in that worker's
+MCP server environment. Its `wl_comment` calls retain signed evidence without
+changing task status or thawing dependencies, even when the prose contains
+`Completed:` / `Verification:` or `Blocked:` headings. Explicit `wl_claim`,
+`wl_park`, `wl_release` and `wl_close` retain their normal semantics and guards.
+Expose only the tools appropriate to the worker's review/deployment authority.
+This profile prevents accidental prose-driven transitions; it is not an access
+control boundary. Attribution and stored text remain unchanged.
+
+The default (`1`, or unset) preserves existing lifecycle-comment compatibility.
+Invalid values are rejected. Restart that worker's MCP process after changing
+its environment. A review handoff stays open until the applicable installed
+acceptance; use the explicit close tool only when that acceptance is complete.
+
 Workspace-scoped callers may set `WL_WORKFORCE_LOCAL_ONLY=1` and
 `WL_WORKFORCE_ROSTER=/path/to/selected/roster.json` to use only that roster
 for assignment validation. This disables WorkForce service lookups and
