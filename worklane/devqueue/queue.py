@@ -139,9 +139,11 @@ class WorkQueue:
     ``ProjectTracker`` directly.
     """
 
-    def __init__(self, tracker: ProjectTracker, *, limit: int = 500) -> None:
+    def __init__(self, tracker: ProjectTracker, *, limit: Optional[int] = None) -> None:
         self._tracker = tracker
         self._limit = limit
+        # Eligibility must include old open work and completed prerequisites.
+        # Apply presentation limits only after ready filtering and sorting.
         self._all: List[Task] = list(tracker.list_tasks(limit=limit))
         self._by_ext: Dict[str, Task] = {}
         for t in self._all:
