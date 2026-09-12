@@ -13,7 +13,9 @@ changing task status or thawing dependencies, even when the prose contains
 `wl_park`, `wl_release` and `wl_close` retain their normal semantics and guards.
 Expose only the tools appropriate to the worker's review/deployment authority.
 This profile prevents accidental prose-driven transitions; it is not an access
-control boundary. Attribution and stored text remain unchanged.
+control boundary. Attribution is retained. Original prose is stored as a
+clearly marked blockquote so legacy closeout/owner/count readers cannot treat
+its headings as lifecycle evidence.
 
 The default (`1`, or unset) preserves existing lifecycle-comment compatibility.
 Invalid values are rejected. Restart that worker's MCP process after changing
