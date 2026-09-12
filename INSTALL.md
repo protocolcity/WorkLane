@@ -6,6 +6,13 @@ assumes no existing host.
 
 ## Quick install (package / suite dependency)
 
+Workspace-scoped callers may set `WL_WORKFORCE_LOCAL_ONLY=1` and
+`WL_WORKFORCE_ROSTER=/path/to/selected/roster.json` to use only that roster
+for assignment validation. This disables WorkForce service lookups and
+automatic roster discovery. Missing or unreadable selected rosters do not
+fall back to another workspace. Without this option, the service-first
+lookup and local fallback remain supported.
+
 If WorkLane is delivered as a wheel — Homebrew formula, `pip install`, or
 as a suite dependency — no source checkout is required:
 
