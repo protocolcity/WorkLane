@@ -193,8 +193,9 @@ def build_tool_definitions() -> List[Dict[str, Any]]:
         {
             "name": "wl_comment",
             "description": (
-                "Post a signed comment. For close-outs prefer wl_close; "
-                "for blockers include 'Blocked:' + 'Next step:'."
+                "Post a signed comment. By default lifecycle headings can change status. "
+                "WORKLANE_COMMENT_TRANSITIONS=0 makes this tool preserve status. "
+                "Use explicit wl_close/wl_release for lifecycle actions."
             ),
             "inputSchema": {
                 "type": "object",
