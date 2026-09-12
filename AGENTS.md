@@ -2,7 +2,7 @@
 
 WorkLane is the standalone local-first work-order engine. Its Python package is `worklane`; public tools are `wl_*`. Historical task IDs and compatible client aliases remain resolvable without restoring an old package or a second data store.
 
-Read [PROTOCOL.md](PROTOCOL.md) for lifecycle, ownership, routing and evidence requirements, [INSTALL.md](INSTALL.md) for setup, and [README.md](README.md) for the product overview. Host instructions belong in the workspace, not in this distributable product source.
+Read [ARCHITECTURE.md](ARCHITECTURE.md) for product structure, [PROTOCOL.md](PROTOCOL.md) for lifecycle, ownership, routing and evidence requirements, [INSTALL.md](INSTALL.md) for setup, and [README.md](README.md) for the product overview. Host instructions belong in the workspace, not in this distributable product source.
 
 ## Boundaries
 
