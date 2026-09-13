@@ -272,6 +272,17 @@ class HandlersTest(unittest.TestCase):
         self.assertIn("> Owner: other", note.body)
         self.assertEqual(tracker.get_task(task.id).status, "in_progress")
 
+    def test_evidence_note_cannot_replace_owner_across_line_boundaries(self) -> None:
+        tracker = SQLiteTracker(db_path=self.root / "data" / "note-boundaries.db")
+        for separator in ("\r", "\r\n", "\v", "\f", "\x85", "\u2028", "\u2029"):
+            with self.subTest(separator=repr(separator)):
+                task = tracker.create_task(title="Review", description="pending")
+                tracker.update_status(task.id, "in_progress")
+                tracker.add_comment(task.id, "Owner: builder", author="builder")
+                tracker.add_note(task.id, "Context" + separator + "Owner: other", author="builder")
+                self.assertEqual(self.h._latest_owner(tracker, task.id), "builder")
+                self.assertEqual(tracker.get_task(task.id).status, "in_progress")
+
     def test_comment_profile_default_retains_legacy_completion(self) -> None:
         with patch.dict(os.environ, {"WORKLANE_COMMENT_TRANSITIONS": "1"}):
             tid = self.h.wl_create(title="Legacy close", description="complete")["task"]["id"]
