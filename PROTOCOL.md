@@ -751,7 +751,19 @@ items) once the project gets its own dispatched agent lane.
    `WL_PRODUCT`/`WL_DEFAULT_PRODUCT` defaulting to the right one). See the
    cross-project rule in `~/OneSeo/AGENTS.md` for a worked multi-project
    example.
-6. **UI wiring is automatic** — `discover_products()` re-scans
+6. **Store lifecycle (wl-525, 2026-09-13)** — a store exists only for a
+   registered project: a top-level workspace folder with `AGENTS.md` and a
+   `.protocolcity/desk-join.json` naming the slug; with a known workspace
+   root the engine refuses to create anything else (wl-427). Renaming a
+   project retires the old store the same day: move `<old>.db` and its
+   `-wal`/`-shm` sidecars to `local/worklane/retired-stores/<date>/` with an
+   index line, never leave it beside the live one. Backups, pre-write
+   copies and dry-run decoys never live in `data/`; the scratch globs
+   (`*.pre-*`, `*bak*`, `zzz*`) and the slug grammar only hide them from
+   discovery, they do not make them harmless. BluePrint Connections lists
+   every excluded file it finds in `data/`; an excluded file is a defect to
+   retire, not a state to tolerate. Tests never open host stores (wl-517).
+7. **UI wiring is automatic** — `discover_products()` re-scans
    `local/data/*.db` on every request (no restart), so Board/Table's
    segmented project nav, the Overview scope nav, and `wl_counts`/`wl_ready`
    pick up the new project the moment its store exists — zero further code

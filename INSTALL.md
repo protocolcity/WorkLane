@@ -154,9 +154,15 @@ happens:
   lowercase alphanumeric characters and not already used by another
   project). This creates `worklane/local/data/myproject.db` and
   registers any given metadata in
-  `worklane/local/config/products.json`, or
-- you drop a `<your-slug>.db` SQLite file directly into
-  `worklane/local/data/`.
+  `worklane/local/config/products.json`.
+
+Do not copy a `.db` file into `worklane/local/data/` by hand. Discovery
+scans that directory, so a stray copy, a backup, a sync-collision name
+("slug 992.db") or a leftover from a rename shows up as an excluded store
+in BluePrint until someone retires it (wl-78, wl-377, wl-427, wl-525).
+When the engine knows its workspace root it refuses to create a store for
+a slug that has no project folder with `AGENTS.md`; keep backups and
+scratch copies outside `data/` (for example `local/worklane/retired-stores/`).
 
 Filing a ticket with `"surface": "<your-slug>"` (via the API, CLI, or MCP
 `wl_create`) against a slug that hasn't been bootstrapped either way rejects
