@@ -15,7 +15,8 @@ Expose only the tools appropriate to the worker's review/deployment authority.
 This profile prevents accidental prose-driven transitions; it is not an access
 control boundary. Attribution is retained. Original prose is stored as a
 clearly marked blockquote so legacy closeout/owner/count readers cannot treat
-its headings as lifecycle evidence.
+its headings as lifecycle evidence. All Python-recognized line boundaries,
+including carriage returns and Unicode separators, are normalized and quoted.
 
 The default (`1`, or unset) preserves existing lifecycle-comment compatibility.
 Invalid values are rejected. Restart that worker's MCP process after changing

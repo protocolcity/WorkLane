@@ -750,7 +750,7 @@ class SQLiteTracker(ProjectTracker):
         # stored prose. Quote every line so a note cannot masquerade as a prior
         # completion or Owner marker when those readers inspect history later.
         note = "Evidence note (status unchanged):\n\n" + "\n".join(
-            "> " + line for line in body.split("\n")
+            "> " + line for line in (body.splitlines() or [""])
         )
         return self._append_comment(task_id, note, author, lifecycle=False)
 
