@@ -331,7 +331,7 @@ checks **presence** only; agents still verify the SHA is an ancestor of
 (§5.1 rule 3 carve-out). **Shift worktrees:** do not put only
 `workforce/shift/<id>` tips in Links — land first, then cite that landing
 SHA: `git push origin HEAD:main` when FF-able on a repo with an `origin`
-remote; on a local-only repo (no `origin` — e.g. oneseo-pos, recipes, see
+remote; on a local-only repo (no `origin` — e.g. a local-only product repo, see
 HOST_REGISTRY.md) land instead by merging into the shared local `main` from
 the **primary checkout**, not the shift tree (`git merge --ff-only
 workforce/shift/<id>`, or a real merge/rebase if main has moved). Citing a
@@ -493,7 +493,7 @@ Canonical agent ids (lowercase kebab-case, no spaces, no brackets):
 | `binx` | Binx · Inventory & catalog. Succeeds `stock` (retired 2026-08-06, osp-504, history retained — comments signed by the old id remain valid record). Register store lane — inventory adjust/transfer, pocket inventory floor UX, catalog, stock moves. Papers at `register/workers/binx/` (host hire osp-517). Feed `worker:binx`. |
 | `demo-worker` | Demo Worker · Recipes. Papers at `recipes/workers/demo-worker/CONTRACT.md`. Feed `worker:demo-worker`. |
 | `duchess` | Duchess · Presentation Steward. Papers at `presentations/workers/duchess/CONTRACT.md`. Feed `worker:duchess`. |
-| `efficiency-oneseo-pos` | Efficiency-oneseo-pos · Daily OneSeoPOS efficiency / drift pass. Papers at `oneseo-pos/workers/efficiency-oneseo-pos/CONTRACT.md`. Feed `worker:efficiency-oneseo-pos`. Function-named; not retired. |
+| `efficiency-oneseo-pos` | Daily POS efficiency / drift pass. Papers at the POS project worker contract. Feed `worker:efficiency-oneseo-pos`. Function-named; not retired. |
 | `luna` | Luna · Career Docs Steward. Papers at `career/workers/luna/CONTRACT.md`. Feed `worker:luna`. |
 | `workspace-efficiency` | Workspace efficiency. Papers at `.protocolcity/ops/workers/workspace-efficiency/CONTRACT.md`. Feed `worker:workspace-efficiency`. Function-named; not retired. |
 
@@ -568,8 +568,8 @@ them. Routing labels migrate `lane:<old-id>` → `worker:<persona>` via
 | `wren` | Wren | — (new hire 2026-07-14, no predecessor; specialist / future desk) |
 | `city-steward` | City Steward | — (new hire, no predecessor; patrol job) |
 | `founder-brief` | Founder Brief | — (new hire, no predecessor; report job) |
-| `pepper` | Pepper · Till & POS UI (Register / oneseo-pos) | `ring` (retired 2026-08-06, osp-504 — history retained) |
-| `binx` | Binx · Inventory & catalog (Register / oneseo-pos) | `stock` (retired 2026-08-06, osp-504 — history retained) |
+| `pepper` | Pepper · Till & POS UI | `ring` (retired 2026-08-06, osp-504 — history retained) |
+| `binx` | Binx · Inventory & catalog | `stock` (retired 2026-08-06, osp-504 — history retained) |
 | `ring` | **RETIRED 2026-08-06** → `pepper` (osp-504). Was: Ring · Till & POS UI. History retained. | — (new hire 2026-08-02) |
 | `stock` | **RETIRED 2026-08-06** → `binx` (osp-504). Was: Stock · Inventory & catalog. History retained. | — (new hire 2026-08-02) |
 
@@ -703,9 +703,8 @@ API/MCP/CLI param names — e.g. `?product=` query params not yet migrated to
 `?project=` — see wl-64/wl-46.)
 
 **`local/data/` holds live stores only**: sqlite backups and dry-run
-scratch files belong outside the discovery dir (`~/OneSeo/wl-backups/` or
-similar — the scheduled `com.worklane.backup` job already writes
-there). A stray backup left in `local/data/` used to surface as a phantom
+scratch files belong outside the discovery dir (a backups folder next to the workspace — the scheduled
+`com.worklane.backup` job already writes there). A stray backup left in `local/data/` used to surface as a phantom
 project tab; discovery now skips `<slug>.db` stems matching a backup/scratch
 glob (`*.pre-*`, `*.backup*`, `*bak*`, `zzz*`) unless the slug is explicitly
 registered in `local/config/products.json`.
@@ -749,8 +748,7 @@ items) once the project gets its own dispatched agent lane.
    `project=<slug>` explicitly on every WL call — required, not optional,
    once more than one project store exists (no single call may rely on
    `WL_PRODUCT`/`WL_DEFAULT_PRODUCT` defaulting to the right one). See the
-   cross-project rule in `~/OneSeo/AGENTS.md` for a worked multi-project
-   example.
+   workspace `AGENTS.md` for a worked multi-project example.
 6. **Store lifecycle (wl-525, 2026-09-13)** — a store exists only for a
    registered project: a top-level workspace folder with `AGENTS.md` and a
    `.protocolcity/desk-join.json` naming the slug; with a known workspace
