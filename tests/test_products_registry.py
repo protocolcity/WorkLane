@@ -403,7 +403,7 @@ class SurfaceRoutingTest(unittest.TestCase):
             )
         }
         _make_env(self.root)
-        # wl-427: walk-up from worklane under OneSeo would find a city and
+        # wl-427: walk-up from worklane under a host workspace folder would find a city and
         # refuse free product creates. Host-neutral surface tests pin a
         # non-existent city root so neighborhood-required stays off.
         os.environ["WL_CITY_ROOT"] = str(self.root / "no-city-here")

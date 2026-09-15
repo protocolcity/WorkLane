@@ -37,8 +37,8 @@ _KNOWN_PRODUCT_META: Dict[str, Tuple[str, str]] = {
 
 # Legacy stores that are not product surfaces. ``ops_tickets`` is the
 # retired Ops Cockpit store (empty; surface removed from the UI).
-# ``register`` is the pre-cutover OneSeoPOS store (2026-08-03): live surface
-# is ``oneseo-pos`` / ``osp-`` with ``legacy_prefixes: ["regi"]``. Empty
+# ``register`` is a pre-cutover sibling POS store (2026-08-03): live surface
+# uses a dedicated product slug with ``legacy_prefixes: ["regi"]``. Empty
 # register.db must not reappear as a Map/doctor project row.
 # ``davinci`` is the pre-comms store (2026-09-01, davi-9 B): live surface
 # is ``comms`` / ``comms-`` with ``legacy_prefixes: ["davi"]``.
