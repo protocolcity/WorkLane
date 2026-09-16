@@ -17,8 +17,9 @@ One command — BluePrint CLI + WorkLane + WorkForce engines:
 ```bash
 brew install protocolcity/tap/blueprint
 blueprint setup ~/my-city
-blueprint serve --root ~/my-city --with-engines
-# → http://127.0.0.1:8801/  (Map · Desk · Roster)
+blueprint serve --root ~/my-city
+# → http://127.0.0.1:8803/  (Overview · Work · Projects · Agents · Map)
+# :8801 and :8802 redirect to the same process.
 ```
 
 Or PyPI: `pip install protocolcity protocolcity-worklane protocolcity-workforce`
