@@ -21,7 +21,7 @@ class HandlersPackagePeelTest(unittest.TestCase):
         self.assertEqual(
             names,
             [
-                "wl_list",
+                "wl_checkpoint", "wl_handoff", "wl_list",
                 "wl_ready",
                 "wl_show",
                 "wl_create",

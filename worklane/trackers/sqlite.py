@@ -76,6 +76,7 @@ from worklane._ref_parse import (
 )
 from worklane.products import checkout_root, wl_data_dir
 from worklane.trackers.protocol import ProjectTracker, Task, TaskComment, TaskStatus
+from worklane.continuity import ContinuityMixin
 
 
 def _main_worktree_root() -> Path:
@@ -204,7 +205,7 @@ def _row_to_comment(row: sqlite3.Row) -> TaskComment:
     )
 
 
-class SQLiteTracker(ProjectTracker):
+class SQLiteTracker(ContinuityMixin, ProjectTracker):
     """Local-file project tracker for ops tickets.
 
     Pass ``db_path`` to override the DB location (tests do this). The
@@ -628,6 +629,7 @@ class SQLiteTracker(ProjectTracker):
             )
         now = _now_iso()
         with self._connect() as conn:
+            conn.execute("BEGIN IMMEDIATE")
             cur_row = conn.execute(
                 "SELECT * FROM tasks WHERE id = ? OR ext_id = ? LIMIT 1",
                 (self._maybe_int(task_id), str(task_id)),
@@ -636,6 +638,11 @@ class SQLiteTracker(ProjectTracker):
                 return None
             cur_task = _row_to_task(cur_row)
             target_status = status
+            if (status in (TaskStatus.IN_PROGRESS, TaskStatus.IN_REVIEW)
+                    and cur_task.status in (TaskStatus.IN_PROGRESS, TaskStatus.IN_REVIEW)):
+                owner = self._claim_owner(conn, int(cur_row["id"]))
+                if owner and owner != actor:
+                    raise ValueError("work is owned by " + owner + "; explicit handoff required")
 
             # Dependency guard: blocked tickets cannot be claimed directly.
             # Keep them in the frozen pool (in_review) until blockers clear.

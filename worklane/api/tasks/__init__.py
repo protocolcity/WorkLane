@@ -29,6 +29,7 @@ from worklane.api.tasks.crud import (  # noqa: F401
 from worklane.api.tasks import products as _products  # noqa: F401,E402
 from worklane.api.tasks import crud as _crud  # noqa: F401,E402
 from worklane.api.tasks import ops as _ops  # noqa: F401,E402
+from worklane.api.tasks import continuity as _continuity  # noqa: F401,E402
 
 __all__ = [
     "DEFAULT_AGENT_ID",

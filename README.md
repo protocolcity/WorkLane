@@ -82,6 +82,7 @@ Gates distinguish human action, timers, deferred work and structural tracking.
 Unavailable or quiet execution is not permission to steal a claim. WorkLane
 records durable work context; it does not transfer proprietary conversation
 state between providers. Safe execution recovery also requires the runner.
+See [continuation](CONTINUITY.md) for checkpoint and guarded handoff contracts.
 
 ## Development
 
