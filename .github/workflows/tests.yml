@@ -9,22 +9,21 @@ jobs:
   pytest:
     name: pytest
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python: ["3.9", "3.11"]
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: ${{ matrix.python }}
 
       - name: Install
         run: pip install -e . && pip install pytest httpx
 
-      - name: Run tests
-        run: |
-          pytest tests/ -q \
-            --deselect tests/test_backup_freshness_script.py::BackupFreshnessScriptTest::test_existing_alert_is_counted_from_tasks_payload \
-            --deselect tests/test_relations.py::BackfillScriptSmokeTest::test_help_loads_current_worklane_package
-        # The two deselected tests exercise scripts not present in the public
-        # export (check_backup_freshness.sh, backfill_relations.py are
-        # internal-only). They are pre-existing failures in the export tree,
-        # tracked upstream.
+      - name: Run complete test suite
+        env:
+          WORKLANE_RUNTIME_DIR: ${{ runner.temp }}/worklane-tests
+          WORKFORCE_NO_DESK: "1"
+        run: python -m pytest tests -q

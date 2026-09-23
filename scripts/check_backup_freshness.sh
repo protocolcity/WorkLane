@@ -59,7 +59,7 @@ fi
 NEWEST_MTIME=0
 NEWEST_FILE=""
 while IFS= read -r -d '' f; do
-  mtime="$(stat -f %m "$f" 2>/dev/null || echo 0)"
+  mtime="$(python3 -c 'import os,sys; print(int(os.stat(sys.argv[1]).st_mtime))' "$f" 2>/dev/null || echo 0)"
   if [[ "$mtime" -gt "$NEWEST_MTIME" ]]; then
     NEWEST_MTIME="$mtime"
     NEWEST_FILE="$f"
@@ -74,7 +74,7 @@ if [[ "$NEWEST_MTIME" -eq 0 ]]; then
   STATUS="NO_BACKUPS_FOUND"
   LAST_BACKUP_TS="never"
 else
-  LAST_BACKUP_TS="$(date -r "$NEWEST_MTIME" '+%Y-%m-%dT%H:%M')"
+  LAST_BACKUP_TS="$(python3 -c 'from datetime import datetime; import sys; print(datetime.fromtimestamp(int(sys.argv[1])).isoformat(timespec="minutes"))' "$NEWEST_MTIME")"
   if [[ "$AGE_SECS" -lt "$THRESHOLD_SECS" ]]; then
     echo "check_backup_freshness: FRESH — last backup ${LAST_BACKUP_TS} (${AGE_H}h ago; threshold ${THRESHOLD_H}h)"
     exit 0
