@@ -634,13 +634,17 @@ def api_delete_task_relation(
 
 
 @router.get("/api/admin/tasks/{task_id}")
-def api_get_task(task_id: str) -> JSONResponse:
-    _surf, raw_id, tracker = _resolve_product_tracker(task_id)
+def api_get_task(task_id: str, product: Optional[str] = None) -> JSONResponse:
+    try:
+        _surf, raw_id, tracker = _resolve_product_tracker(task_id, product, write=bool(product))
+    except ValueError as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=409)
     task, comments, archived = _get_task_hot_or_archive(tracker, raw_id)
     if task is None:
         return JSONResponse({"ok": False, "error": "task not found"}, status_code=404)
     out = task.to_dict()
     out["id"] = task_id
+    out["product"] = _surf
     out["archived"] = archived
     out["comments"] = [
         {
@@ -655,7 +659,7 @@ def api_get_task(task_id: str) -> JSONResponse:
     desc = task.description or ""
     out["description_html"] = render_markdown(desc) if desc else ""
     out["relations"] = _task_relations_dicts(_surf, raw_id, tracker)
-    return JSONResponse({"ok": True, "task": out, "archived": archived})
+    return JSONResponse({"ok": True, "product": _surf, "task": out, "archived": archived})
 
 
 # Match sqlite lifecycle auto-transition predicate (PROTOCOL.md §3):
