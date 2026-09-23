@@ -19,6 +19,8 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
 
+      - name: Public source boundary
+        run: python scripts/check_public_surface.py
       - name: Install
         run: pip install -e . && pip install pytest httpx
 
