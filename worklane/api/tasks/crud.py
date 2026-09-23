@@ -1151,6 +1151,8 @@ async def api_add_comment(task_id: str, request: Request) -> JSONResponse:
         comment = tracker.add_comment(raw_id, body, author=author)
     except KeyError:
         return JSONResponse({"ok": False, "error": "task not found"}, status_code=404)
+    except ValueError as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=409)
     return JSONResponse(
         {
             "ok": True,

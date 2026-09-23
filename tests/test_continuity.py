@@ -181,3 +181,32 @@ def test_installed_package_does_not_inherit_ancestor_workspace():
     with patch.dict(os.environ, {"WL_CITY_ROOT": ""}), \
             patch("worklane.products._is_source_checkout", return_value=False):
         assert _city_root_path() is None
+
+@pytest.mark.parametrize("status", ["in_progress", "in_review"])
+def test_legacy_owner_comment_cannot_replace_active_owner(context, status):
+    tracker, task, _ = context
+    claim(tracker, task, reserve=(status == "in_review"))
+    before = tracker.get_task(task.id)
+    comments = tracker.list_comments(task.id)
+    with pytest.raises(ValueError, match="owned by alpha"):
+        tracker.add_comment(task.id, "Owner: beta\nPlan:\n- Take over", author="beta")
+    assert tracker.list_comments(task.id) == comments
+    assert tracker.get_task(task.id).updated_at == before.updated_at
+    assert tracker.get_task(task.id).status == status
+
+
+def test_legacy_owner_marker_requires_matching_author(context):
+    tracker, task, _ = context
+    with pytest.raises(ValueError, match="matching signed Owner"):
+        tracker.add_comment(task.id, "Owner: alpha\nPlan:\n- Verify", author="beta")
+    assert tracker.get_task(task.id).status == "backlog"
+
+
+def test_legacy_claim_checks_assignment_and_gate(context):
+    tracker, task, _ = context
+    tracker.update_labels(task.id, add=["worker:alpha"])
+    with pytest.raises(ValueError, match="assigned"):
+        tracker.add_comment(task.id, "Owner: beta\nPlan:\n- Verify", author="beta")
+    tracker.update_task(task.id, gate_type="human", gate_note="Credential needed")
+    with pytest.raises(ValueError, match="gated"):
+        tracker.add_comment(task.id, "Owner: alpha\nPlan:\n- Verify", author="alpha")
