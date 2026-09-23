@@ -2,203 +2,104 @@
 
 [![Tests](https://github.com/protocolcity/WorkLane/actions/workflows/tests.yml/badge.svg)](https://github.com/protocolcity/WorkLane/actions/workflows/tests.yml)
 
-> **Pre-release (0.1.x).** Part of the **ProtocolCity** suite with
-> [WorkForce](https://github.com/protocolcity/WorkForce) and
-> [BluePrint](https://github.com/protocolcity/BluePrint).
-> Expect sharp edges; file issues.
+A local-first work-order engine for people and AI agents. Keep objectives,
+assignments, gates, claims and verification in a shared record that outlives
+any one chat or provider session.
 
-**A local-first work queue for multi-agent teams — the coordination layer that
-keeps your AI agents from stepping on each other.**
+WorkLane works independently through HTTP, MCP or the `wl` CLI. SQLite stores
+are separated by project. [BluePrint](https://github.com/protocolcity/BluePrint)
+is an optional operations interface; [WorkForce](https://github.com/protocolcity/WorkForce)
+is an optional execution engine. WorkLane does not run AI models.
 
-## Install the whole suite (recommended)
+The 0.1.x series is pre-release. Supported behavior and limits are documented
+in [PROTOCOL.md](PROTOCOL.md); installation and configuration are in
+[INSTALL.md](INSTALL.md).
 
-One command — BluePrint CLI + WorkLane + WorkForce engines:
+## Install
 
-```bash
-brew install protocolcity/tap/blueprint
-blueprint setup ~/my-city
-blueprint serve --root ~/my-city
-# → http://127.0.0.1:8803/  (Overview · Work · Projects · Agents · Map)
-# :8801 and :8802 redirect to the same process.
-```
-
-Or PyPI: `pip install protocolcity protocolcity-worklane protocolcity-workforce`
-
-## WorkLane alone
+Python 3.9 or later:
 
 ```bash
+python3 -m venv .venv
+source .venv/bin/activate
 pip install protocolcity-worklane
-worklane          # start the API server (http://127.0.0.1:8799)
-wl --help         # ticket CLI
+export WORKLANE_RUNTIME_DIR="$HOME/.worklane"
+worklane
 ```
 
-You have Claude Code working your backlog. Then you add Cursor. Then a
-scheduled agent that runs every hour. Suddenly two agents are editing the same
-file, a third closes a ticket nobody verified, and you can't reconstruct who
-did what. WorkLane is the fix: a shared ticket queue with a **claim protocol**
-(reserve before you touch anything), **lanes** (route work by agent
-capability), and a **closeout contract** (no "done" without stating what
-shipped and how it was verified) — all on your machine, in SQLite, with no
-cloud dependency.
+The default server address is `http://127.0.0.1:8799`. Set `TASK_HOST` and
+`TASK_PORT` to change it. Keep the service on a trusted interface; signed
+actor names are attribution, not authentication.
 
-WorkLane is a **protocol plus a reference implementation**. The protocol
-([PROTOCOL.md](PROTOCOL.md)) defines the lifecycle, ownership markers, and
-closeout format any compliant agent follows. The implementation ships
-everything you need to run it: a FastAPI server with a REST API, an MCP
-server so agents get native tools, a stdlib-only CLI, and per-project SQLite
-stores.
+## First project and work order
 
-It isn't a demo. It was extracted from a working system where a scheduled
-Claude Code pool, operator-driven terminals, Cursor, and Grok have worked a
-shared backlog daily for months.
-
-## Quickstart (from this repo)
+In a separate terminal, bootstrap a project before filing work:
 
 ```bash
-git clone https://github.com/protocolcity/WorkLane && cd WorkLane
-pip install -e .
+curl -s -X POST http://127.0.0.1:8799/api/admin/products \
+  -H 'Content-Type: application/json' \
+  -d '{"slug":"example","display":"Example","prefix":"ex"}'
 
-worklane                     # start the API server (http://127.0.0.1:8799)
+curl -s -X POST http://127.0.0.1:8799/api/admin/tasks \
+  -H 'Content-Type: application/json' \
+  -d '{"surface":"example","author":"you","title":"Verify setup","description":"Create one work record and confirm its project and author.","labels":["worker:you","you:host"]}'
+
+wl list --project example --status backlog
 ```
 
-Health-check: `curl -s localhost:8799/api/admin/products` — lists all project stores. Use `wl --help` for the ticket CLI or connect agents via MCP.
+For an installation attached to an existing workspace, register its project
+folder and instructions first; see [project setup](INSTALL.md#project-setup).
+Always select the project explicitly. Do not create stores by copying database
+files into the runtime directory.
 
-File your first ticket:
+## Connect an agent
+
+Configure its MCP client to run:
 
 ```bash
-curl -X POST localhost:8799/api/admin/tasks \
-  -H "Content-Type: application/json" \
-  -d '{"surface": "worklane", "author": "founder",
-       "title": "Try WorkLane",
-       "description": "Problem: my agents collide. Outcome: they stop.",
-       "labels": ["worker:you", "you:host"]}'
+python -m worklane.mcp --author example-agent
 ```
 
-Every write is signed (`author` is required — the protocol has no anonymous
-actions), and every ticket needs a real problem statement by construction.
+Set `WORKLANE_RUNTIME_DIR` to the same absolute runtime path used by the server.
+Use a registered executor identity and its allowed project. Interactive sessions
+use `you`. Claude, Grok, Cursor, Codex and other MCP clients can use the same
+protocol; support in a client does not establish its authentication or quota.
 
-**Route on create.** When a product has hired lane hands, create also requires
-exactly one `worker:*` seat label (`worker:<hand>`, or `worker:you` plus a
-you-kind: `you:note` / `you:remind` / `you:todo` / `you:host`). Omit the seat
-post-hire → **HTTP 400** / MCP ToolError listing valid seats. Pre-hire (no
-lanes yet) the engine stamps `needs:routing` instead. Never two `worker:*`
-labels. Full law: [PROTOCOL.md](PROTOCOL.md) (create-path routing).
+Use `wl_ready`, `wl_claim`, `wl_comment`, `wl_park` and `wl_close` with explicit
+`project=`. A review-stage agent can set `WORKLANE_COMMENT_TRANSITIONS=0` so
+comments retain evidence without changing lifecycle status. Expose only the
+operations appropriate to its role.
 
-## Give your agents tools (MCP)
+## Daily workflow
 
-Agents coordinate through the stdio MCP server — 16 tools, no extra
-dependencies:
+1. Capture an objective, scope and acceptance criteria in the owning project.
+2. Assign one registered `worker:<id>`. Assignment is distinct from dispatch.
+3. Claim eligible work before editing; preserve other writers' ownership.
+4. Record decisions, artifacts, tests and a next action when pausing.
+5. Close with Completed, Verification, Links and Follow-ups after acceptance.
+
+Gates distinguish human action, timers, deferred work and structural tracking.
+Unavailable or quiet execution is not permission to steal a claim. WorkLane
+records durable work context; it does not transfer proprietary conversation
+state between providers. Safe execution recovery also requires the runner.
+See [continuation](CONTINUITY.md) for checkpoint and guarded handoff contracts.
+
+## Development
 
 ```bash
-claude mcp add worklane -- python -m worklane.mcp --author claude
+git clone https://github.com/protocolcity/WorkLane.git
+cd WorkLane
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -e . pytest httpx
+python -m pytest tests -q
 ```
 
-or in any MCP host config (Claude Code / Claude Desktop / Cursor / …):
-
-```json
-{
-  "mcpServers": {
-    "worklane": {
-      "command": "python",
-      "args": ["-m", "worklane.mcp", "--author", "cursor"]
-    }
-  }
-}
-```
-
-| Group | Tools |
-| --- | --- |
-| Work lifecycle | `wl_list` · `wl_ready` · `wl_show` · `wl_create` · `wl_claim` · `wl_comment` · `wl_close` · `wl_release` |
-| Triage | `wl_label` · `wl_update` · `wl_cancel` · `wl_reopen` |
-| Soft-lock / pulse | `wl_reserve` · `wl_park` · `wl_mine` · `wl_counts` |
-
-`wl_close` takes structured closeout sections (`completed`, `verification`,
-`links`, `follow_ups`) — a malformed closeout is impossible by construction.
-
-There's also `wl`, a stdlib-only CLI for agents and scripts that shouldn't
-import anything:
-
-```bash
-export WL_AGENT_ID=my-agent
-wl create --title "Try WorkLane" --description "..." --project worklane \
-  --author my-agent --label worker:you --label you:host
-wl list --project worklane --status backlog
-wl show wl-1
-wl status wl-1 in_progress
-wl comment wl-1 "Owner: my-agent — claiming" --author my-agent
-wl doctor  # optional Charter compliance check — reports, never blocks
-```
-
-`wl create` / `wl_create` use the same author + seat rules as HTTP above.
-
-## The protocol in 60 seconds
-
-1. **Everything is a ticket** in a per-project SQLite store. Projects are just
-   `<slug>.db` files — drop in a new one and it gets its own board tab, its
-   own ticket id space (`wl-12`, `myapp-3`), zero code.
-2. **Claim before work.** An agent moves a ticket to `in_review` and posts an
-   `Owner:` comment before touching a file. Two agents can never silently work
-   the same ticket.
-3. **Lanes route by capability.** Label tickets `lane:<agent>` and each agent
-   scans only its lane — small mechanical fixes to a lightweight agent,
-   architectural work to a stronger one, judgment calls to a human.
-4. **Closeouts are contracts.** Done requires `Completed:` + `Verification:`
-   (with evidence), or the auto-transition guards bounce it back.
-5. **Every action is signed.** Comments and writes carry an agent identity;
-   the trail is the audit log.
-
-The full normative rulebook is [PROTOCOL.md](PROTOCOL.md). To onboard your own
-project and write per-agent profiles, start at [INSTALL.md](INSTALL.md) and
-[HOST_PROFILE_TEMPLATE.md](HOST_PROFILE_TEMPLATE.md).
-
-## What it is / what it isn't
-
-- **Local-first, file-backed.** One machine, SQLite, no accounts, no cloud.
-  Backup = copy the `.db` files.
-- **Host-neutral.** Your project consumes WorkLane over HTTP, MCP, or the CLI
-  — three doors into one protocol. WorkLane never reaches into your codebase.
-
-## Why not Jira? Why not an orchestration framework?
-
-Because they solve different problems, and the one in the middle is unsolved.
-
-**Orchestration frameworks** (LangGraph, CrewAI, AutoGen, …) coordinate agents
-*within a single task*: a supervisor decomposes a job, workers execute, and
-the state dies with the process. WorkLane coordinates *across* agents,
-sessions, and days — a persistent backlog that outlives any one run. They
-compose: use an orchestrator inside a task, WorkLane between tasks.
-
-**Human project trackers** (Jira, Linear, GitHub Issues) can hold agent work,
-but they enforce nothing. Nothing stops two agents from silently working the
-same item; nothing stops an agent from marking work done with no evidence;
-their auth and audit models assume the actor is a person. WorkLane enforces
-the contract at the API: claim before work, signed writes on every action,
-closeouts that structurally require verification evidence. The comment trail
-doubles as an attribution log — you can always answer *which agent did what,
-when, and how it was verified*.
-
-**Homegrown glue** — lock files, label conventions, "agents, please check the
-spreadsheet" — is what most multi-agent teams actually run on today. WorkLane
-is that glue, extracted from production, hardened, and written down as a
-protocol.
-
-The humans keep the final say. The agents get a queue they
-can't cheat.
-
-## Layout & configuration
-
-Runtime state lives under `worklane/local/` (created on first run):
-`data/<slug>.db` per project, `logs/`, `run/`. Useful knobs:
-
-- `TASK_HOST` / `TASK_PORT` — bind address for the server (default
-  `127.0.0.1:8799`)
-- `WL_AGENT_ID` — default author identity for CLI/MCP writes
-- `WL_PRODUCT` — default project store when a tool call omits `project`
-- `WORKLANE_RUNTIME_DIR` — relocate the runtime root
-
-macOS users can install a login service (auto-start + crash restart):
-`scripts/install-macos-service.sh install`.
+Tests use disposable stores. CI runs the complete suite, including the included
+maintenance scripts. See [ARCHITECTURE.md](ARCHITECTURE.md), [AGENTS.md](AGENTS.md)
+and [HOST_PROFILE_TEMPLATE.md](HOST_PROFILE_TEMPLATE.md). Preserve runtime state
+outside package files and use SQLite's backup facilities for live databases.
 
 ## License
 
-Apache-2.0 — see [LICENSE](LICENSE). © 2026 ProtocolCity.
+Apache-2.0 — see [LICENSE](LICENSE).

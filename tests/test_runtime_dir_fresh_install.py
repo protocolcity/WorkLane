@@ -114,8 +114,9 @@ class FreshInstallDbFilenameTest(unittest.TestCase):
         ), patch.object(sqlite_mod, "LEGACY_DB_PATH", missing), patch.dict(
             os.environ, {}, clear=False
         ):
-            os.environ.pop("WORKLANE_DB", None)
-            os.environ.pop("TRADEOS_TRACKER_DB", None)
+            for key in ("WORKLANE_DB", "TRADEOS_TRACKER_DB",
+                        "WORKLANE_RUNTIME_DIR", "TICKETING_PROTOCOL_RUNTIME_DIR"):
+                os.environ.pop(key, None)
             return sqlite_mod.SQLiteTracker()
 
     def test_fresh_install_routes_through_default_product_slug(self) -> None:

@@ -2084,13 +2084,17 @@ def task_detail(task_id: str) -> str:
 def _city_root_path() -> Optional[str]:
     """City root directory, or None when no city is detectable (wl-155).
 
-    WL stays host-neutral: WL_CITY_ROOT (or WL_CITY_ROOT) env wins; otherwise walk up from this
-    repo to the topmost dir carrying an AGENTS.md (the city-root convention).
+    An explicit WL_CITY_ROOT wins. Only source checkouts may discover an
+    ancestor workspace; installed packages must not inherit a workspace merely
+    because their virtual environment is stored beneath its instructions.
     A standalone checkout that is its own topmost AGENTS.md dir counts as no
     city — the check silently skips.
     """
     root = (os.environ.get("WL_CITY_ROOT") or os.environ.get("WL_CITY_ROOT") or "").strip()
     if not root:
+        from worklane.products import _is_source_checkout
+        if not _is_source_checkout():
+            return None
         d = os.path.abspath(_ROOT)
         top = ""
         while True:

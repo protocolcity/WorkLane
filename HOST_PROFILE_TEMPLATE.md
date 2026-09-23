@@ -1,100 +1,39 @@
 # Host profile template
 
-Copy this into your host repo (e.g. as a `PROTOCOL.md` section or standalone
-`TICKETING.md`) and fill in the blanks. It mirrors the shape of WorkLane's own
-[PROTOCOL.md](PROTOCOL.md) §6 and §8 — those are worked examples
-(host and self-host) if you want to see a filled-in version. Setup steps live in
-[INSTALL.md](INSTALL.md); this is the *process* doc that goes in your
-host repo once WorkLane is running.
+Copy and complete this in the adopting workspace. Keep real paths, account
+configuration and private operational history out of public product source.
+The [protocol](PROTOCOL.md) supplies lifecycle and evidence rules; this profile
+supplies the installation's authority and execution details.
 
-Why this exists: WorkLane enforces signed writes and status transitions, but it
-has no opinion on *who* your agents are, what working copy they use, or
-what "done" means for your codebase. Skipping this doc is how two agents
-(or an agent and a human) end up clobbering the same ticket.
+| Field | Fill in |
+|---|---|
+| Project | Registered slug, store identity and project instructions |
+| Executor | Dedicated worker ID; use `you` for an interactive session |
+| Working copy | Allowed repository/path, branch and isolation procedure |
+| Scope | Allowed paths and work kinds; explicit exclusions |
+| Connection | MCP/CLI/API endpoint and absolute runtime path |
+| Queue | Explicit project and `worker:<id>` readiness filter |
+| Provider | Supported model/tools and account quota pool; no secrets here |
+| Host | Local or explicitly configured remote execution environment |
+| Trigger | Manual or verified schedule; configuration is not run evidence |
+| Budget | Time/usage limits, retry cap and stop conditions |
+| Verification | Exact behavior checks and required integration evidence |
+| Publication | Applicable review, branch, release and deployment authority |
+| Recovery | Checkpoint location, stopped-writer proof and ownership-transfer procedure |
 
----
+Before dispatch, verify the selected store and identity, authentication and
+scope. Keep real credential values in the host's secret mechanism. A provider
+change must preserve the same authority and work record. Test the setup with
+disposable data and do not automatically retry authentication/permission refusal.
 
-## `<Host Name>` Profile
-
-Run from `<absolute path to your repo root>`. Commit subject convention:
-`<your-prefix>-NNN: short description`.
-
-**Ticket interface:** `<MCP | wl CLI | direct HTTP>` — see
-[INSTALL.md §5](INSTALL.md#5-pick-an-interface-for-agents) for how each
-works. Never write WorkLane's SQLite stores directly from host code.
-
-```bash
-# fill in whichever interface you picked above, e.g.:
-wl list --project <your-slug> --status backlog
-```
-
-**Agent identity:** every agent lane your host runs needs its own
-canonical id (lowercase kebab-case, no spaces) — register it in a table
-like PROTOCOL.md §5.2's, one row per lane:
-
-| Agent id | Who |
-| --- | --- |
-| `<your-agent-id>` | `<human description, e.g. "hourly scheduled worker">` |
-
-Every comment's `author` field and every `Owner:` marker must carry this
-id (PROTOCOL.md §3.8/§5.2) — sign every write, no exceptions.
-
-**Working copy:** `<absolute path>` — state whether this is the primary
-checkout or a git worktree, and whether the lane is allowed to create its
-own worktrees. (WorkLane's own lanes default to "primary checkout, no
-worktrees" — see PROTOCOL.md §6.1's rationale: a stray worktree stranded
-five closed tickets' commits off `main` for ~5 hours.)
-
-**Scan filter:** does this lane pull the full backlog, or only tickets
-with a specific label (e.g. `lane:<your-agent-id>`)? If label-filtered,
-say who applies the label.
-
-**Take-list:** what kinds of tickets this lane should claim.
-
-**Skip-list:** what it should never touch — list concrete labels/areas,
-not vague categories. If a claimed ticket turns out to be on the
-skip-list, the convention is: post `Blocked: scope larger than expected —
-releasing` and return it to backlog.
-
-**Verification bar:** what must pass before a `Completed:` close-out —
-e.g. `<test command>`, lint, a manual check. Be concrete; "tests pass" is
-only useful if the next agent knows which command to run.
-
-**Deploy step (if any):** does landing a change require restarting a
-service? Name the exact command and the health-check to confirm it came
-back up.
-
-**Claim / close-out / ghost-audit:** state that PROTOCOL.md §2 (agent flow)
-and §5 (intake/closeout, including the §5.1 commit-or-abandon guard) apply
-unchanged, with this lane's `Owner:` id. Ghost-audits are reciprocal — this
-lane audits only its own `Owner:` markers, never another lane's.
-
-**Runtime (if scheduled/automated):** how and when this lane fires (cron
-expression, launchd label, manual trigger), and where its logs land.
-
----
-
-## AGENTS.md snippet
-
-Add a section like this to your host repo's `AGENTS.md` (or equivalent
-agent-instructions file) so any agent that scopes into ticket work finds
-the rulebook:
+## Agent instruction snippet
 
 ```markdown
-## Ticketing
-
-This repo tracks work in WorkLane, a standalone local-first work-order
-service — not GitHub Issues, not a TODO file. Before touching any ticket:
-
-1. Read `<path-to-your-copy-of>/PROTOCOL.md` (or your host profile section
-   above) — the lifecycle/ownership rulebook every agent follows.
-2. Use `<MCP | the wl CLI | curl>` for every read/write — never open
-   WorkLane's SQLite files directly.
-3. Sign every comment with `<your-agent-id>` (PROTOCOL.md §3.8).
-4. Close tickets with the four-section contract: `Completed:` /
-   `Verification:` / `Links:` / `Follow-ups:` — malformed close-outs are
-   rejected by the API (or by `wl_close` if you're on MCP).
-
-WorkLane itself lives at `<path to your WorkLane checkout, or "vendored at <path>">`.
-Service runs on `<host>:<port>` (default `127.0.0.1:8799`).
+This project tracks work in WorkLane. Read the project instructions and its
+host profile. Pass project=<registered-slug> on every WorkLane call and sign
+with the configured executor identity. Claim eligible work before editing.
+Use the owning API/MCP/CLI, never direct SQLite mutation. Record decisions,
+artifacts, verification and the next action on the same order. Park for review
+when integration remains; close only with verified acceptance and the required
+Completed, Verification, Links and Follow-ups sections. Empty queues stop.
 ```

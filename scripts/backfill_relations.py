@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Dry-run (and, once approved, apply) relations backfill for wl-20.
+"""Report or apply relations backfill.
 
 Parses existing prose ``Depends on #N`` / ``Blocked by #N`` declarations
 and ``parent:`` / ``slice-of:`` / numeric ``epic:`` labels into
@@ -10,8 +10,8 @@ Usage:
 
 Default mode is dry-run: no writes, just a report. --apply inserts rows
 inside the relations helpers (cycle-safe, idempotent). Never run --apply
-against a live product store without founder sign-off on the dry-run
-report (wl-20 / wl-7 precedent).
+against a live product store without applicable authorization and a
+verified backup. Review the dry-run report first.
 """
 from __future__ import annotations
 
@@ -31,7 +31,7 @@ from worklane.relations import apply_backfill  # noqa: E402
 
 def main(argv: Optional[List[str]] = None) -> int:
     parser = argparse.ArgumentParser(
-        description="Backfill task_relations from prose Depends-on / parent labels (wl-20)"
+        description="Backfill task_relations from prose Depends-on / parent labels"
     )
     parser.add_argument(
         "--db",

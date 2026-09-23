@@ -7,6 +7,7 @@ from typing import Any, Dict, Optional, Tuple
 from worklane.mcp.handlers.errors import ToolError, _DEFAULT_PROJECT
 from worklane.mcp.handlers.read import ReadMixin
 from worklane.mcp.handlers.write import WriteMixin
+from worklane.mcp.handlers.continuity import ContinuityHandlers
 from worklane.products import (
     default_product_slug,
     empty_runtime_override_warning,
@@ -24,7 +25,7 @@ from worklane.trackers.protocol import Task
 from worklane.trackers.sqlite import SQLiteTracker
 
 
-class TPHandlers(ReadMixin, WriteMixin):
+class TPHandlers(ReadMixin, WriteMixin, ContinuityHandlers):
     """Stateful tool surface bound to a single agent identity."""
 
     def __init__(self, author: str, default_product: Optional[str] = None) -> None:

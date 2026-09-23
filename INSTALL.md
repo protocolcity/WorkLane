@@ -1,231 +1,158 @@
-# Installing WorkLane in a new host
+# Install and operate WorkLane
 
-This walks a new host ("I found WorkLane on GitHub, I want work order tracking
-for my own project") from a bare clone to agents filing and working tickets. It
-assumes no existing host.
+WorkLane requires Python 3.9 or later. It can run independently; BluePrint,
+WorkForce and a source checkout are optional.
 
-## Quick install (package / suite dependency)
-
-For a PR-stage worker, set `WORKLANE_COMMENT_TRANSITIONS=0` in that worker's
-MCP server environment. Its `wl_comment` calls retain signed evidence without
-changing task status or thawing dependencies, even when the prose contains
-`Completed:` / `Verification:` or `Blocked:` headings. Explicit `wl_claim`,
-`wl_park`, `wl_release` and `wl_close` retain their normal semantics and guards.
-Expose only the tools appropriate to the worker's review/deployment authority.
-This profile prevents accidental prose-driven transitions; it is not an access
-control boundary. Attribution is retained. Original prose is stored as a
-clearly marked blockquote so legacy closeout/owner/count readers cannot treat
-its headings as lifecycle evidence. All Python-recognized line boundaries,
-including carriage returns and Unicode separators, are normalized and quoted.
-
-The default (`1`, or unset) preserves existing lifecycle-comment compatibility.
-Invalid values are rejected. Restart that worker's MCP process after changing
-its environment. A review handoff stays open until the applicable installed
-acceptance; use the explicit close tool only when that acceptance is complete.
-
-Workspace-scoped callers may set `WL_WORKFORCE_LOCAL_ONLY=1` and
-`WL_WORKFORCE_ROSTER=/path/to/selected/roster.json` to use only that roster
-for assignment validation. This disables WorkForce service lookups and
-automatic roster discovery. Missing or unreadable selected rosters do not
-fall back to another workspace. Without this option, the service-first
-lookup and local fallback remain supported.
-
-If WorkLane is delivered as a wheel — Homebrew formula, `pip install`, or
-as a suite dependency — no source checkout is required:
+## Package installation
 
 ```bash
-pip install protocolcity-worklane
-worklane          # start the API server (http://127.0.0.1:8799)
-worklane-mcp      # MCP server for agent clients
-wl --help         # ticket CLI (canonical short; worklane is the long form)
-```
-
-No source checkout or separate host venv required. Runtime state (SQLite
-stores, config) lives under `~/.worklane/`; override with
-`WORKLANE_RUNTIME_DIR` (legacy alias: `WORKLANE_RUNTIME_DIR`).
-Source-checkout git worktrees follow the main checkout's `worklane/local/`
-so MCP and the launchd server share one store; set
-`WORKLANE_RUNTIME_LOCAL=1` to keep a worktree-local store instead. Skip to **§4** to bootstrap your first
-project.
-
----
-
-The sections below walk the source-checkout path — for hosts that want to
-pin a specific commit, run the test suite, or contribute to the protocol.
-
-## 1. Clone
-
-```bash
-git clone <this repo> worklane
-cd worklane
-```
-
-WorkLane is self-contained: no other repo, service, or database is required.
-
-## 2. Install
-
-**Source product venv hygiene (wl-398 / pc-1150):** install **only** this
-checkout editable (`pip install -e .`). Do **not** also
-`pip install -e ../ProtocolCity-WorkLane` (or any export tree) into the same
-venv — both claim the top-level package name `worklane`, the export’s editable
-finder wins, and `wl` dies with `ModuleNotFoundError: worklane.cli.wl` (export
-still ships the old `worklane.cli.wl` module). Export trees are publish
-artifacts, never a second live install target beside the product source.
-
-
-```bash
-python3 -m venv .venv        # required for launchd / ./ticketing on this host
+python3 -m venv .venv
 source .venv/bin/activate
-pip install -e .
+pip install protocolcity-worklane
+export WORKLANE_RUNTIME_DIR="$HOME/.worklane"
+worklane
 ```
 
-Package deps are only FastAPI + uvicorn — **no host venv or separate service
-is required**.
+`worklane` starts the HTTP service, `worklane-mcp` starts a stdio MCP server,
+and `wl` is the HTTP CLI. These are different entrypoints, not aliases for
+one command. The service defaults to `127.0.0.1:8799`; `TASK_HOST` and
+`TASK_PORT` override it. Keep the endpoint on a trusted interface. Actor
+names provide attribution, not authentication.
 
-This installs the `worklane` package plus three console scripts:
-
-| Script | Purpose |
-| --- | --- |
-| `worklane` | starts the FastAPI/uvicorn service |
-| `worklane-mcp` | starts the stdio MCP server for agent clients |
-| `wl` | ticket CLI (`wl list` / `show` / `comment` / `status` / `label`) — see below; `worklane` is the long-form alias (`tk` retired 2026-08-03) |
-
-Requires Python 3.9+ (see `pyproject.toml`).
-
-## 3. Start the service
+Verify the configured endpoint:
 
 ```bash
-python -m worklane.server
-# or, after step 2: worklane
+curl -s http://127.0.0.1:8799/api/admin/products
+wl --help
 ```
 
-Default bind is `127.0.0.1:8799`. Override with `TASK_HOST` / `TASK_PORT`.
-Runtime state (SQLite stores, logs, pid files) lives under
-`worklane/local/` — hidden, gitignored, created on first run.
+## Runtime location
 
-### Optional: seed a demo board (wl-45)
+An installed package defaults to `~/.worklane/`. `WORKLANE_RUNTIME_DIR` selects
+an explicit runtime root shared by the service and MCP clients. The legacy
+`TICKETING_PROTOCOL_RUNTIME_DIR` variable remains compatible. Stores live in
+`data/` and configuration in `config/` beneath that root.
 
-For a first-run board that already has tickets across backlog / in_progress /
-in_review / done (so an agent can claim one immediately):
+Source checkouts default to `worklane/local/` in the main checkout. Linked git
+worktrees follow that main runtime unless `WORKLANE_RUNTIME_LOCAL=1` is set.
+For tests and isolated trials, use an absolute disposable runtime directory.
+Never install two editable copies of the same Python package in one environment.
 
-```bash
-wl demo
-# or seed then start in one shot:
-worklane --demo
-```
+## Project setup
 
-This writes **only** the isolated `demo` project store
-(`worklane/local/data/demo.db`). It never touches any other project
-store you have configured. Re-run is a no-op unless
-you pass `--force` (demo store only). Inspect the seeded tickets: `wl list --product demo`.
-
-To keep it running across reboots on macOS without any host repo:
+Bootstrap a project before filing work:
 
 ```bash
-scripts/install-macos-service.sh install
-```
-
-See [README.md#native-startup](README.md#native-startup) for details and
-`--python`/`--dry-run` flags.
-
-Verify it's up:
-
-```bash
-curl -s http://localhost:8799/api/admin/products   # expect {"ok":true,"products":[...]}
-```
-
-## 4. Bootstrap your project
-
-WorkLane is **one SQLite store per project**, auto-discovered — but the store has
-to exist before you can file tickets against it; there is no
-create-on-first-write. A project appears the moment either of these
-happens:
-
-- you bootstrap it explicitly via `POST /api/admin/products` (wl-12):
-
-  ```bash
-  curl -s -X POST http://localhost:8799/api/admin/products \
-    -H 'Content-Type: application/json' \
-    -d '{"slug":"myproject","display":"My Project","prefix":"mp"}'
-  ```
-
-  `slug` is required (lowercase, starts with a letter, `[a-z0-9_-]`, max 40
-  chars); `display` and `prefix` are optional (`prefix` must be 2-8
-  lowercase alphanumeric characters and not already used by another
-  project). This creates `worklane/local/data/myproject.db` and
-  registers any given metadata in
-  `worklane/local/config/products.json`.
-
-Do not copy a `.db` file into `worklane/local/data/` by hand. Discovery
-scans that directory, so a stray copy, a backup, a sync-collision name
-("slug 992.db") or a leftover from a rename shows up as an excluded store
-in BluePrint until someone retires it (wl-78, wl-377, wl-427, wl-525).
-When the engine knows its workspace root it refuses to create a store for
-a slug that has no project folder with `AGENTS.md`; keep backups and
-scratch copies outside `data/` (for example `local/worklane/retired-stores/`).
-
-Filing a ticket with `"surface": "<your-slug>"` (via the API, CLI, or MCP
-`wl_create`) against a slug that hasn't been bootstrapped either way rejects
-with an "unknown ticket surface" / "unknown product" error — bootstrap
-first, then file.
-
-Once the store exists, it appears in the products registry automatically — no code changes. File your
-first work order:
-
-```bash
-wl --help   # confirm the CLI is on PATH first
-
-curl -s -X POST http://localhost:8799/api/admin/tasks \
+curl -s -X POST http://127.0.0.1:8799/api/admin/products \
   -H 'Content-Type: application/json' \
-  -d '{"title":"First work order","description":"Bootstrapping myproject.","surface":"myproject","author":"you"}'
+  -d '{"slug":"example","display":"Example","prefix":"ex"}'
 ```
 
-You can rename the display name / short id prefix later too, via
-`PATCH /api/admin/products/<slug>` (wl-17) — see
-`worklane/products.py` for the on-disk shape of the
-`products.json` overlay.
+The slug starts with a lowercase letter, contains lowercase letters, digits,
+underscores or hyphens, and has at most 40 characters. A custom prefix has
+2–8 lowercase alphanumeric characters and must be unique. The products API
+creates the store and records its metadata. Unknown stores reject work writes.
 
-## 5. Pick an interface for agents
+When the service is configured for a workspace, register the actual project
+folder and its AGENTS.md under that workspace before creating its store.
+A `.protocolcity/desk-join.json` points the project at the existing store.
+Do not register reference/archive clones as projects or bypass registration
+by copying a database. Backups and retired stores stay outside `data/`.
 
-Three ways to read/write tickets, in order of preference:
+File scoped work:
 
-1. **MCP** (best for AI agents/editors): point an MCP-capable client at
-   `python -m worklane.mcp --author <agent-id>` — see
-   [README.md#mcp-server-agent-native-access](README.md#mcp-server-agent-native-access)
-   for the full 16-tool catalog and a sample client config.
-2. **The `wl` CLI** (best for shell scripts / non-MCP hosts): installed by
-   step 2 above (`worklane` is the long-form alias).
+```bash
+curl -s -X POST http://127.0.0.1:8799/api/admin/tasks \
+  -H 'Content-Type: application/json' \
+  -d '{"surface":"example","author":"you","title":"Verify setup","description":"Confirm the project and author of this work record.","labels":["worker:you","you:host"]}'
+wl list --project example --status backlog
+```
 
-   ```bash
-   export WL_BASE_URL=http://localhost:8799   # default if unset
-   export WL_AGENT_ID=you                     # signs comments (PROTOCOL.md §3.8)
+Every write names its actor. A project with registered workers requires one
+valid `worker:<id>`; host work uses `worker:you` with `you:host`. See
+[PROTOCOL.md](PROTOCOL.md) for readiness, ownership and evidence.
 
-   wl list --project myproject --status backlog
-   wl show mp-1
-   wl comment mp-1 "starting work" --author you
-   wl status mp-1 in_progress
-   wl label mp-1 --add area:backend
-   ```
+## Agent connection
 
-   This CLI only speaks HTTP (`urllib`, stdlib-only) — no
-   `worklane` import required on the calling side, so it is safe
-   to vendor into a host repo that doesn't want a Python dependency on WL.
-3. **Direct HTTP** (for non-Python hosts, or a custom passthrough): the full route list lives in `worklane/task_server.py`. Every write requires a signed `author` field
-   (PROTOCOL.md §3.8) — unsigned writes are rejected with a 400.
+Configure the MCP client with the Python executable from the installation:
 
-## 6. Write your host's agent docs
+```json
+{
+  "mcpServers": {
+    "worklane": {
+      "command": "/absolute/path/to/.venv/bin/python",
+      "args": ["-m", "worklane.mcp", "--author", "example-agent"],
+      "env": {
+        "WORKLANE_RUNTIME_DIR": "/absolute/path/to/runtime",
+        "WORKLANE_COMMENT_TRANSITIONS": "0"
+      }
+    }
+  }
+}
+```
 
-Every host that adopts WorkLane is expected to write its own operating profile
-— what agent identity to sign as, which working copy to use, what the
-verification bar is before closing a work order. Don't skip this: it's what
-keeps multiple agents from clobbering each other's claims.
+Substitute the registered executor identity and real absolute paths. For an
+interactive human session, use author `you`. Pass explicit `project=` on tools.
+No provider-specific work-order store is needed.
 
-Start from [HOST_PROFILE_TEMPLATE.md](HOST_PROFILE_TEMPLATE.md), which has
-a fill-in-the-blanks PROTOCOL.md §6-style profile plus an AGENTS.md snippet.
-See PROTOCOL.md §6 (Host Profiles).
+`WORKLANE_COMMENT_TRANSITIONS=0` keeps MCP comments as evidence without
+performing lifecycle transitions. Explicit lifecycle tools retain their guards.
+This setting is useful for review-stage workers but does not implement tool
+authorization. Configure exposed tools to match the worker's authority. The
+default retains legacy comment transitions; restart MCP after changing its env.
 
-## Read next
+For workspace-scoped assignment checks, `WL_WORKFORCE_LOCAL_ONLY=1` together
+with `WL_WORKFORCE_ROSTER=/absolute/path/to/roster.json` selects only that
+roster. Missing/unreadable selected rosters do not fall back to another
+workspace. Without this setting, service-first roster lookup remains supported.
 
-- [PROTOCOL.md](PROTOCOL.md) — the normative work order lifecycle/ownership
-  rulebook every agent (yours included) follows.
-- [README.md](README.md) — product overview, quickstart, MCP setup.
+CLI clients use `WL_BASE_URL` for the endpoint and `WL_AGENT_ID` for the actor.
+Consult `wl --help` and each subcommand's help for the installed version.
+Use [HOST_PROFILE_TEMPLATE.md](HOST_PROFILE_TEMPLATE.md) for scope, execution,
+verification and recovery instructions.
+
+## Source development
+
+```bash
+git clone https://github.com/protocolcity/WorkLane.git
+cd WorkLane
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -e . pytest httpx
+python -m pytest tests -q
+```
+
+CI runs the full suite on supported test interpreters. Tests use disposable
+stores; do not run maintenance commands against production to validate a patch.
+Optional macOS startup: inspect `scripts/install-macos-service.sh --help` and
+its dry-run before installing the service.
+
+## Updates and recovery
+
+Keep runtime data separate from installed package files. Before an upgrade,
+record the installed version and runtime path and create a consistent backup.
+Use SQLite's backup API for a live database, or stop all writers before copying
+its database and sidecar files. Test restore in a separate runtime. Retain the
+previous environment/package until the updated service and project identities
+are verified. Do not assume an older binary supports a migrated schema.
+
+The repository includes `scripts/backfill_relations.py`: its default is a
+read-only report, and `--apply` is a separate, authorized migration. The backup
+freshness monitor is optional; configure its directory, endpoint and project
+explicitly and inspect `--dry-run` before enabling alert writes. Neither script
+is needed for ordinary installation or work-order use.
+
+## Troubleshooting
+
+- **Unknown project:** inspect `/api/admin/products` at the configured endpoint;
+  verify registration and runtime selection before creating another store.
+- **Different data in MCP and HTTP:** compare their absolute runtime paths and
+  installed package locations, then restart the misconfigured client.
+- **No ready work:** inspect gates, dependencies, status and worker assignment;
+  a nonempty backlog can have no eligible work.
+- **Rejected closeout:** inspect the error and supply real verification/revision
+  evidence. Do not invent a SHA or bypass the owning engine.
+- **Interrupted executor:** preserve edits and checkpoint evidence; verify the
+  previous writer stopped before an authorized ownership transfer.
+
+See [ARCHITECTURE.md](ARCHITECTURE.md) and [PROTOCOL.md](PROTOCOL.md).

@@ -41,17 +41,7 @@ SEAT = "worker:lili"
 AREA = "area:matrix"
 
 
-def _load_direct_cli_task():
-    """Direct-SQLite CLI (cli/task.py). Absent from public export (HTTP CLI only)."""
-    for name in ("worklane.cli.task", "worklane.cli.task"):
-        try:
-            return importlib.import_module(name)
-        except ImportError:
-            continue
-    return None
 
-
-_CLI_TASK = _load_direct_cli_task()
 
 
 def _workforce_response(workers: list) -> Any:
@@ -274,85 +264,6 @@ class McpCreatePathMatrix(_MatrixEnv):
         msg = str(ctx.exception)
         self.assertIn("worker:vera", msg)
         self.assertIn("not a hired seat", msg)
-
-
-@unittest.skipUnless(
-    _CLI_TASK is not None,
-    "cli/task.py not in public export — HTTP CLI delegates routing to API "
-    "(covered by HttpCreatePathMatrix)",
-)
-class CliCreatePathMatrix(_MatrixEnv):
-    """Direct-tracker CLI create (worklane/cli/task.py).
-
-    Public export ships only the HTTP CLI (wl.py); bare-create hard-B there is
-    enforced server-side and already locked by HttpCreatePathMatrix.
-    """
-
-    def _run_create(self, labels: Optional[List[str]]) -> int:
-        assert _CLI_TASK is not None
-        args = argparse.Namespace(
-            title="matrix cli",
-            description="CLI create-path routing matrix case",
-            description_file=None,
-            priority=3,
-            label=labels,
-            author="lili",
-            intake="cli",
-        )
-        buf_out = io.StringIO()
-        buf_err = io.StringIO()
-        try:
-            with redirect_stdout(buf_out), redirect_stderr(buf_err):
-                _CLI_TASK.cmd_create(args)
-            self._cli_out = buf_out.getvalue()
-            self._cli_err = buf_err.getvalue()
-            return 0
-        except SystemExit as exc:
-            self._cli_out = buf_out.getvalue()
-            self._cli_err = buf_err.getvalue()
-            code = exc.code
-            if code is None:
-                return 0
-            return int(code) if not isinstance(code, int) else code
-
-    def test_bare_under_hired_hands_rejected(self) -> None:
-        code = self._run_create([AREA])
-        self.assertEqual(code, 1, msg=self._cli_err)
-        self.assertIn("worker:* required", self._cli_err)
-        self.assertIn(SEAT, self._cli_err)
-
-    def test_worker_lili_accepted_seat_preserved(self) -> None:
-        code = self._run_create([SEAT, AREA])
-        self.assertEqual(code, 0, msg=self._cli_err + self._cli_out)
-        self.assertIn("Created #", self._cli_out)
-        tasks = SQLiteTracker(db_path=self.db_path).list_tasks()
-        self.assertEqual(len(tasks), 1)
-        self._assert_seated(list(tasks[0].labels or []))
-
-    def test_worker_you_classified_accepted(self) -> None:
-        """wl-315: worker:you + you:todo is a valid classified human seat."""
-        code = self._run_create(["worker:you", "you:todo", AREA])
-        self.assertEqual(code, 0, msg=self._cli_err + self._cli_out)
-        self.assertIn("Created #", self._cli_out)
-        tasks = SQLiteTracker(db_path=self.db_path).list_tasks()
-        self.assertEqual(len(tasks), 1)
-        labs = list(tasks[0].labels or [])
-        self.assertIn("worker:you", labs)
-        self.assertNotIn("needs:routing", labs)
-
-    def test_worker_you_bare_rejected(self) -> None:
-        """wl-315: bare worker:you starves hand queues — CLI must reject it."""
-        code = self._run_create(["worker:you", AREA])
-        self.assertEqual(code, 1, msg=self._cli_err)
-        self.assertIn("starves", self._cli_err.lower())
-        self.assertIn("you:note", self._cli_err)
-
-    def test_foreign_seat_rejected(self) -> None:
-        """wl-372: a seat not hired for this product is rejected via CLI."""
-        code = self._run_create(["worker:vera", AREA])
-        self.assertEqual(code, 1, msg=self._cli_err)
-        self.assertIn("worker:vera", self._cli_err)
-        self.assertIn("not a hired seat", self._cli_err)
 
 
 class ImportCreatePathMatrix(_MatrixEnv):

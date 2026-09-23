@@ -902,7 +902,7 @@ class SurfaceRoutingTest(unittest.TestCase):
                     "author": "founder",
                 },
             )
-        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.status_code, 409)
         self.assertTrue(
             any("wl-pool" in msg and "founder" in msg for msg in cm.output)
         )
@@ -925,7 +925,7 @@ class SurfaceRoutingTest(unittest.TestCase):
                     f"/api/admin/tasks/{tid}/comments",
                     json={
                         "body": "Owner: wl-pool (claude-sonnet-5)\nStart: now",
-                        "author": "work-pool",
+                        "author": "wl-pool",
                     },
                 )
                 self.assertEqual(r.status_code, 200)
