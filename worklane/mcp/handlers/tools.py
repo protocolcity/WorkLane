@@ -38,7 +38,20 @@ def build_tool_definitions() -> List[Dict[str, Any]]:
         ),
     }
 
-    return [
+    continuity_tools = []
+    for name, fields, description in (
+        ("wl_checkpoint", {"checkpoint": {"type": "object"}, "expected_version": {"type": "string"}},
+         "Write an owner-signed versioned checkpoint with compare-and-set protection. Never include credentials or private transcripts."),
+        ("wl_handoff", {key: {"type": "string"} for key in
+                        ("previous_owner", "next_owner", "expected_version", "checkpoint_id", "stopped_evidence")},
+         "Transfer stopped work to a registered receiving worker, preserving checkpoint lineage. Requires verified stopped-writer evidence from the runner or authorized host."),
+    ):
+        continuity_tools.append({"name": name, "description": description, "inputSchema": {
+            "type": "object", "properties": dict(fields, task_id=task_id_prop,
+                project=project_prop, product=product_prop),
+            "required": ["task_id"] + list(fields)}})
+
+    return continuity_tools + [
         {
             "name": "wl_list",
             "description": (
@@ -493,6 +506,8 @@ def dispatch_tool(handlers: TPHandlers, name: str, arguments: Dict[str, Any]) ->
         "wl_show": handlers.wl_show,
         "wl_create": handlers.wl_create,
         "wl_claim": handlers.wl_claim,
+        "wl_checkpoint": handlers.wl_checkpoint,
+        "wl_handoff": handlers.wl_handoff,
         "wl_comment": handlers.wl_comment,
         "wl_close": handlers.wl_close,
         "wl_release": handlers.wl_release,
