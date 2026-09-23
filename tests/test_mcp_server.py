@@ -279,8 +279,7 @@ class HandlersTest(unittest.TestCase):
         for separator in ("\r", "\r\n", "\v", "\f", "\x85", "\u2028", "\u2029"):
             with self.subTest(separator=repr(separator)):
                 task = tracker.create_task(title="Review", description="pending")
-                tracker.update_status(task.id, "in_progress")
-                tracker.add_comment(task.id, "Owner: builder", author="builder")
+                tracker.claim_work(task.id, "builder", "Owner: builder\nPlan: verify")
                 tracker.add_note(task.id, "Context" + separator + "Owner: other", author="builder")
                 self.assertEqual(self.h._latest_owner(tracker, task.id), "builder")
                 self.assertEqual(tracker.get_task(task.id).status, "in_progress")
