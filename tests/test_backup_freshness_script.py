@@ -16,6 +16,25 @@ _SCRIPT = _REPO_ROOT / "scripts" / "check_backup_freshness.sh"
 
 
 class BackupFreshnessScriptTest(unittest.TestCase):
+    def test_fresh_backup_is_recognized_without_platform_stat(self) -> None:
+        """Metadata checks work on GNU and BSD hosts without invoking stat/date."""
+        with tempfile.TemporaryDirectory(prefix="wl_fresh_backup_") as raw_tmp:
+            tmp = Path(raw_tmp)
+            backups = tmp / "backups"
+            backups.mkdir()
+            (backups / "current.db").write_bytes(b"")
+            fake_bin = tmp / "bin"
+            fake_bin.mkdir()
+            forbidden = fake_bin / "stat"
+            forbidden.write_text("#!/bin/sh\nexit 99\n")
+            forbidden.chmod(0o755)
+            env = dict(os.environ, WL_BACKUP_DIR=str(backups),
+                       PATH=str(fake_bin) + os.pathsep + os.environ["PATH"])
+            result = subprocess.run(["bash", str(_SCRIPT), "--dry-run"],
+                                    env=env, capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertIn("FRESH", result.stdout)
+
     def test_existing_alert_is_counted_from_tasks_payload(self) -> None:
         """A stale backup must not create a duplicate open alert."""
         with tempfile.TemporaryDirectory(prefix="wl_backup_freshness_") as raw_tmp:

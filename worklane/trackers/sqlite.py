@@ -76,6 +76,7 @@ from worklane._ref_parse import (
 )
 from worklane.products import checkout_root, wl_data_dir
 from worklane.trackers.protocol import ProjectTracker, Task, TaskComment, TaskStatus
+from worklane.continuity import ContinuityMixin
 
 
 def _main_worktree_root() -> Path:
@@ -204,7 +205,7 @@ def _row_to_comment(row: sqlite3.Row) -> TaskComment:
     )
 
 
-class SQLiteTracker(ProjectTracker):
+class SQLiteTracker(ContinuityMixin, ProjectTracker):
     """Local-file project tracker for ops tickets.
 
     Pass ``db_path`` to override the DB location (tests do this). The
@@ -628,6 +629,7 @@ class SQLiteTracker(ProjectTracker):
             )
         now = _now_iso()
         with self._connect() as conn:
+            conn.execute("BEGIN IMMEDIATE")
             cur_row = conn.execute(
                 "SELECT * FROM tasks WHERE id = ? OR ext_id = ? LIMIT 1",
                 (self._maybe_int(task_id), str(task_id)),
@@ -636,6 +638,16 @@ class SQLiteTracker(ProjectTracker):
                 return None
             cur_task = _row_to_task(cur_row)
             target_status = status
+            if (cur_task.status in (TaskStatus.IN_PROGRESS, TaskStatus.IN_REVIEW)
+                    and status in (TaskStatus.BACKLOG, TaskStatus.DONE, TaskStatus.CANCELED)):
+                owner = self._claim_owner(conn, int(cur_row["id"]))
+                if owner and actor not in (owner, "you"):
+                    raise ValueError("work is owned by " + owner + "; owner or host action required")
+            if (status in (TaskStatus.IN_PROGRESS, TaskStatus.IN_REVIEW)
+                    and cur_task.status in (TaskStatus.IN_PROGRESS, TaskStatus.IN_REVIEW)):
+                owner = self._claim_owner(conn, int(cur_row["id"]))
+                if owner and owner != actor:
+                    raise ValueError("work is owned by " + owner + "; explicit handoff required")
 
             # Dependency guard: blocked tickets cannot be claimed directly.
             # Keep them in the frozen pool (in_review) until blockers clear.
@@ -759,14 +771,42 @@ class SQLiteTracker(ProjectTracker):
     ) -> TaskComment:
         now = _now_iso()
         with self._connect() as conn:
+            conn.execute("BEGIN IMMEDIATE")
             resolved = conn.execute(
-                "SELECT id, status FROM tasks WHERE id = ? OR ext_id = ? LIMIT 1",
+                "SELECT * FROM tasks WHERE id = ? OR ext_id = ? LIMIT 1",
                 (self._maybe_int(task_id), str(task_id)),
             ).fetchone()
             if not resolved:
                 raise KeyError(f"task {task_id!r} not found")
             task_pk = int(resolved["id"])
             current_status = (resolved["status"] or "").strip()
+            transitions = ((_BLOCKED_RE.search(body) and _NEXT_STEP_RE.search(body))
+                           or (_COMPLETED_RE.search(body) and _VERIFICATION_RE.search(body)))
+            if lifecycle and transitions and current_status in (TaskStatus.IN_PROGRESS, TaskStatus.IN_REVIEW):
+                owner = self._claim_owner(conn, task_pk)
+                if owner and author not in (owner, "you"):
+                    raise ValueError("work is owned by " + owner + "; owner or host action required")
+            if lifecycle and _OWNER_RE.search(body):
+                from worklane.continuity import _OWNER
+                from worklane.trackers.protocol import task_is_gated
+                markers = _OWNER.findall(body)
+                if not author or not markers or any(owner != author for owner in markers):
+                    raise ValueError("claim requires a matching signed Owner marker")
+                owner = self._claim_owner(conn, task_pk)
+                if current_status in (TaskStatus.IN_PROGRESS, TaskStatus.IN_REVIEW):
+                    if owner and owner != author:
+                        raise ValueError("work is owned by " + owner + "; explicit handoff required")
+                    if current_status == TaskStatus.IN_PROGRESS and owner is None:
+                        raise ValueError("active work has unknown ownership; reconcile before resuming")
+                if current_status == TaskStatus.BACKLOG:
+                    task = _row_to_task(resolved)
+                    workers = [label[7:] for label in task.labels if label.startswith("worker:")]
+                    if workers and workers != [author]:
+                        raise ValueError("work is assigned to another worker")
+                    if task_is_gated(task) or "umbrella" in task.labels:
+                        raise ValueError("work is gated or tracking")
+                    if self._unresolved_blockers(conn, task):
+                        raise ValueError("work has unresolved dependencies")
             with conn:
                 cur = conn.execute(
                     """

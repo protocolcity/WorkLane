@@ -782,7 +782,10 @@ async def api_update_task(task_id: str, request: Request) -> JSONResponse:
                     return JSONResponse(
                         {"ok": False, "error": cov_err}, status_code=400
                     )
-        updated = tracker.update_status(raw_id, new_status, actor=actor)
+        try:
+            updated = tracker.update_status(raw_id, new_status, actor=actor)
+        except ValueError as exc:
+            return JSONResponse({"ok": False, "error": str(exc)}, status_code=409)
         if updated is None:
             return JSONResponse({"ok": False, "error": "task not found"}, status_code=404)
         if new_status == TaskStatus.DONE:
@@ -1148,6 +1151,8 @@ async def api_add_comment(task_id: str, request: Request) -> JSONResponse:
         comment = tracker.add_comment(raw_id, body, author=author)
     except KeyError:
         return JSONResponse({"ok": False, "error": "task not found"}, status_code=404)
+    except ValueError as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=409)
     return JSONResponse(
         {
             "ok": True,
@@ -1279,4 +1284,3 @@ def api_list_tasks(
             "column_counts": column_counts,
         }
     )
-

@@ -21,7 +21,7 @@ jobs:
             echo "$found"
             echo ""
             echo "These files must never enter the public repo."
-            echo "See the export/publish law in the internal repo's export script."
+            echo "See AGENTS.md and INSTALL.md for source/runtime separation."
             exit 1
           fi
           echo "OK: no SQLite runtime files"

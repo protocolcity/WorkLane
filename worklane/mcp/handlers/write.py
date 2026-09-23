@@ -117,19 +117,6 @@ class WriteMixin:
         if task.status == TaskStatus.CANCELED:
             raise ToolError(f"{self._public_id(slug, raw_id)} is canceled")
 
-        # backlog → in_review → in_progress; in_review → in_progress;
-        # already in_progress is idempotent re-claim (reposts marker).
-        if task.status == TaskStatus.BACKLOG:
-            tr.update_status(raw_id, TaskStatus.IN_REVIEW, actor=self.author)
-            tr.update_status(raw_id, TaskStatus.IN_PROGRESS, actor=self.author)
-        elif task.status == TaskStatus.IN_REVIEW:
-            tr.update_status(raw_id, TaskStatus.IN_PROGRESS, actor=self.author)
-        elif task.status != TaskStatus.IN_PROGRESS:
-            raise ToolError(
-                f"cannot claim from status {task.status!r}; "
-                f"expected backlog/in_review/in_progress"
-            )
-
         start = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
         lines = [
             f"Owner: {self.author}",
@@ -150,8 +137,10 @@ class WriteMixin:
             lines.append("- (claimed via MCP)")
 
         body = "\n".join(lines)
-        tr.add_comment(raw_id, body, author=self.author)
-        fresh = tr.get_task(raw_id)
+        try:
+            fresh = tr.claim_work(raw_id, self.author, body)
+        except ValueError as exc:
+            raise ToolError(str(exc)) from exc
         assert fresh is not None
         return {
             "ok": True,
@@ -631,23 +620,6 @@ class WriteMixin:
         bundle. Promote later with ``wl_claim``.
         """
         slug, raw_id, tr, task = self._resolve_task(task_id, product, write=True)
-        if task.status == TaskStatus.IN_REVIEW:
-            # Idempotent re-reserve: repost marker, stay in_review.
-            pass
-        elif task.status == TaskStatus.BACKLOG:
-            tr.update_status(raw_id, TaskStatus.IN_REVIEW, actor=self.author)
-        elif task.status == TaskStatus.IN_PROGRESS:
-            raise ToolError(
-                f"{self._public_id(slug, raw_id)} is in_progress — "
-                "use wl_park to soft-lock without releasing, or wl_release "
-                "to return it to the pool"
-            )
-        else:
-            raise ToolError(
-                f"cannot reserve from status {task.status!r}; "
-                f"expected backlog/in_review"
-            )
-
         start = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
         lines = [
             f"Owner: {self.author}",
@@ -657,8 +629,11 @@ class WriteMixin:
         if note_s:
             lines.append(f"Note: {note_s}")
         body = "\n".join(lines)
-        comment = tr.add_comment(raw_id, body, author=self.author)
-        fresh = tr.get_task(raw_id)
+        try:
+            fresh = tr.claim_work(raw_id, self.author, body, reserve=True)
+        except ValueError as exc:
+            raise ToolError(str(exc)) from exc
+        comment = tr.list_comments(raw_id)[-1]
         return {
             "ok": True,
             "task": self._task_dict(slug, fresh) if fresh else None,

@@ -229,12 +229,15 @@ def seed_tracker(tracker: SQLiteTracker, catalog: Optional[Sequence[SeedTicket]]
         task = tracker.create_task(
             title=item.title,
             description=item.description,
-            status=item.status,
+            status="backlog" if item.status in ("in_progress", "in_review") else item.status,
             priority=item.priority,
             labels=list(item.labels),
         )
         for author, body in item.comments:
             tracker.add_comment(str(task.id), body, author=author)
+        if item.status == "in_progress":
+            owner = next((author for author, body in item.comments if body.startswith("Owner:")), "")
+            tracker.update_status(str(task.id), item.status, actor=owner)
         created.append(str(task.id))
     return created
 

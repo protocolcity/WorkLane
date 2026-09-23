@@ -298,8 +298,6 @@ class McpToolAliasDispatchTest(unittest.TestCase):
         self._tmp.cleanup()
 
     def test_dispatch_via_resolved_wl_name(self) -> None:
-        if not _core_is_internal():
-            self.skipTest("public catalog — wl_* is already canonical")
         public = "w" + "l_"
         created = dispatch_tool(
             self.h,
@@ -385,18 +383,16 @@ class McpServerAliasSessionTest(unittest.TestCase):
         internal = "t" + "p_"
         public = "w" + "l_"
         if _core_is_internal():
-            self.assertEqual(len(tools), 32)
+            self.assertEqual(len(tools), 36)
             self.assertIn(internal + "create", names)
             self.assertIn(public + "create", names)
             self.assertIn(public + "ready", names)
             self.assertIn(public + "close", names)
         else:
-            self.assertEqual(len(tools), 16)
+            self.assertEqual(len(tools), 18)
             self.assertTrue(any(n.startswith(public) for n in names))
 
     def test_tools_call_wl_create(self) -> None:
-        if not _core_is_internal():
-            self.skipTest("public catalog — use native wl_create path")
         public = "w" + "l_"
         replies = self._session(
             [
