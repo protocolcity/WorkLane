@@ -182,6 +182,22 @@ def test_installed_package_does_not_inherit_ancestor_workspace():
             patch("worklane.products._is_source_checkout", return_value=False):
         assert _city_root_path() is None
 
+
+def test_http_detail_reports_verified_store_and_refuses_mismatch(context):
+    from fastapi.testclient import TestClient
+    from worklane.task_server import create_app
+    tracker, task, _ = context
+    with TestClient(create_app()) as client:
+        url = "/api/admin/tasks/" + task.id
+        response = client.get(url, params={"product": "worklane"})
+        assert response.status_code == 200, response.text
+        data = response.json()
+        assert data["product"] == data["task"]["product"] == "worklane"
+        assert data["task"]["id"] == task.id
+        composite = "/api/admin/tasks/wl-" + task.id
+        assert client.get(composite, params={"product": "worklane"}).json()["task"]["product"] == "worklane"
+        assert client.get(composite, params={"product": "workforce"}).status_code == 409
+
 @pytest.mark.parametrize("status", ["in_progress", "in_review"])
 def test_legacy_owner_comment_cannot_replace_active_owner(context, status):
     tracker, task, _ = context

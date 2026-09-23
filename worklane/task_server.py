@@ -1,23 +1,10 @@
-"""WorkLane board server (#154, #163, #212).
+"""WorkLane's standalone HTTP server and optional board interface.
 
-A lightweight FastAPI app that serves the WorkLane board (task board + dev
-dashboard) on a separate port (default 8799) with zero dependency on the
-main tradeOS Cockpit web app. Uses :class:`worklane.trackers.sqlite.SQLiteTracker`
-(default ``worklane/local/data/tradeos.db`` for product tickets; Ops DB under
-``worklane/local/data/ops_tickets.db``) so
-agents have a working task view even when
-the main app is being torn apart.
-
-Launch::
-
-    ./tradeos tasks                  # foreground, default: 127.0.0.1:8799
-    ./tradeos cockpit start          # background (nohup), same defaults
-    TASK_PORT=9000 ./tradeos tasks   # override port
-    ./tradeos cockpit install        # install as macOS LaunchAgent (auto-start)
-
-This is a dev utility, not a product feature.  No auth, no CSRF, no mode
-gating.  Reuses the design-token stylesheet from the main app for visual
-consistency.
+Launch with ``worklane`` (or ``python -m worklane.server``). The selected
+``WORKLANE_RUNTIME_DIR`` owns SQLite data independently of the installed
+package. BluePrint may consume this API; business applications do not need
+WorkLane at runtime. This local server binds according to the host's network
+configuration and must be placed behind appropriate access control when exposed.
 """
 
 from __future__ import annotations
@@ -37,7 +24,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-# Ensure project root is on sys.path so `core.*` imports resolve.
+# Keep source-checkout imports compatible with direct module execution.
 _ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
