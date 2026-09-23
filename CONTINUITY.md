@@ -4,7 +4,7 @@ WorkLane preserves the work record. An execution owner such as WorkForce
 controls processes, provider capacity and filesystem access. Neither component
 assumes another provider can import a proprietary chat session.
 
-The checkpoint/handoff API described here is part of the 0.1.10 source
+The checkpoint/handoff API described here is part of the 0.1.12 source
 candidate. Install a version containing these operations before calling them;
 older clients retain the ordinary work-order tools. Automatic provider selection
 and failover additionally require a qualified execution integration.
