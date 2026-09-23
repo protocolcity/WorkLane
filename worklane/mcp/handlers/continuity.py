@@ -17,7 +17,7 @@ class ContinuityHandlers:
                    checkpoint_id, stopped_evidence, product=None):
         slug, raw_id, tracker, task = self._resolve_task(task_id, product, write=True)
         from worklane.api.tasks.helpers import _workforce_workers_for_product
-        workers = _workforce_workers_for_product(slug)
+        workers = {name.removeprefix("worker:") for name in _workforce_workers_for_product(slug)}
         if next_owner not in workers:
             raise ToolError("receiving worker is not registered for the selected project")
         try:
