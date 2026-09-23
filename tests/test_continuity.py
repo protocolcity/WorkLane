@@ -1,5 +1,6 @@
 """Interrupted-work guarantees against real disposable SQLite stores."""
 import copy
+import json
 import os
 import tempfile
 import threading
@@ -197,6 +198,29 @@ def test_http_detail_reports_verified_store_and_refuses_mismatch(context):
         composite = "/api/admin/tasks/wl-" + task.id
         assert client.get(composite, params={"product": "worklane"}).json()["task"]["product"] == "worklane"
         assert client.get(composite, params={"product": "workforce"}).status_code == 409
+
+
+def test_http_handoff_uses_real_registered_roster_names(context, monkeypatch, tmp_path):
+    from fastapi.testclient import TestClient
+    from worklane.task_server import create_app
+    tracker, task, _ = context
+    active = claim(tracker, task)
+    roster = tmp_path / "roster.json"
+    roster.write_text(json.dumps({"workers": {"beta": {"kind": "lane",
+        "queue_url": "http://example.invalid/api/admin/tasks/ready?product=worklane"}}}))
+    monkeypatch.setenv("WL_WORKFORCE_LOCAL_ONLY", "1")
+    monkeypatch.setenv("WL_WORKFORCE_ROSTER", str(roster))
+    with TestClient(create_app()) as client:
+        url = "/api/admin/tasks/wl-" + task.id
+        cp = client.post(url + "/checkpoint", json=dict(author="alpha", project="worklane",
+            checkpoint=checkpoint(), expected_version=active.updated_at))
+        assert cp.status_code == 200, cp.text
+        data = cp.json()
+        handed = client.post(url + "/handoff", json=dict(author="you", project="worklane",
+            previous_owner="alpha", next_owner="beta", checkpoint_id=data["checkpoint_id"],
+            expected_version=data["updated_at"], stopped_evidence="fixture process stopped"))
+        assert handed.status_code == 200, handed.text
+        assert [x for x in handed.json()["task"]["labels"] if x.startswith("worker:")] == ["worker:beta"]
 
 @pytest.mark.parametrize("status", ["in_progress", "in_review"])
 def test_legacy_owner_comment_cannot_replace_active_owner(context, status):
