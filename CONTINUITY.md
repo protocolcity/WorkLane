@@ -79,7 +79,11 @@ Conflicts return a refusal; reread and resolve the cause rather than blind retry
 
 MCP claim/reserve and the HTTP claim endpoint persist ownership and status in
 one transaction. Concurrent claims have one winner. Legacy raw status changes
-are not a replacement for this ownership protocol. Actor attribution is not
+are not a replacement for this ownership protocol. Legacy Owner comments are
+checked transactionally before insertion; a different worker cannot overwrite
+an active owner, release their work, or mark it terminal. An authorized host
+actor may reconcile lifecycle state but still must prove a stopped writer before
+launching another executor. Actor attribution is not
 authentication; deployments still need a trusted API boundary and scoped tools.
 
 See [PROTOCOL.md](PROTOCOL.md) for lifecycle and [INSTALL.md](INSTALL.md) for

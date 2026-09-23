@@ -638,6 +638,11 @@ class SQLiteTracker(ContinuityMixin, ProjectTracker):
                 return None
             cur_task = _row_to_task(cur_row)
             target_status = status
+            if (cur_task.status in (TaskStatus.IN_PROGRESS, TaskStatus.IN_REVIEW)
+                    and status in (TaskStatus.BACKLOG, TaskStatus.DONE, TaskStatus.CANCELED)):
+                owner = self._claim_owner(conn, int(cur_row["id"]))
+                if owner and actor not in (owner, "you"):
+                    raise ValueError("work is owned by " + owner + "; owner or host action required")
             if (status in (TaskStatus.IN_PROGRESS, TaskStatus.IN_REVIEW)
                     and cur_task.status in (TaskStatus.IN_PROGRESS, TaskStatus.IN_REVIEW)):
                 owner = self._claim_owner(conn, int(cur_row["id"]))
@@ -775,6 +780,12 @@ class SQLiteTracker(ContinuityMixin, ProjectTracker):
                 raise KeyError(f"task {task_id!r} not found")
             task_pk = int(resolved["id"])
             current_status = (resolved["status"] or "").strip()
+            transitions = ((_BLOCKED_RE.search(body) and _NEXT_STEP_RE.search(body))
+                           or (_COMPLETED_RE.search(body) and _VERIFICATION_RE.search(body)))
+            if lifecycle and transitions and current_status in (TaskStatus.IN_PROGRESS, TaskStatus.IN_REVIEW):
+                owner = self._claim_owner(conn, task_pk)
+                if owner and author not in (owner, "you"):
+                    raise ValueError("work is owned by " + owner + "; owner or host action required")
             if lifecycle and _OWNER_RE.search(body):
                 from worklane.continuity import _OWNER
                 from worklane.trackers.protocol import task_is_gated

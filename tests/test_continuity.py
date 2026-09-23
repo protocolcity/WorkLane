@@ -210,3 +210,22 @@ def test_legacy_claim_checks_assignment_and_gate(context):
     tracker.update_task(task.id, gate_type="human", gate_note="Credential needed")
     with pytest.raises(ValueError, match="gated"):
         tracker.add_comment(task.id, "Owner: alpha\nPlan:\n- Verify", author="alpha")
+
+@pytest.mark.parametrize("status", ["backlog", "done", "canceled"])
+def test_other_actor_cannot_release_or_finish_owned_work(context, status):
+    tracker, task, _ = context
+    claim(tracker, task)
+    with pytest.raises(ValueError, match="owned by alpha"):
+        tracker.update_status(task.id, status, actor="beta")
+    assert tracker.get_task(task.id).status == "in_progress"
+
+
+@pytest.mark.parametrize("body", ["Blocked: stopped\nNext step: retry", "Completed: done\nVerification: test"])
+def test_legacy_lifecycle_cannot_release_another_owner(context, body):
+    tracker, task, _ = context
+    claim(tracker, task)
+    comments = tracker.list_comments(task.id)
+    with pytest.raises(ValueError, match="owned by alpha"):
+        tracker.add_comment(task.id, body, author="beta")
+    assert tracker.get_task(task.id).status == "in_progress"
+    assert tracker.list_comments(task.id) == comments
